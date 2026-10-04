@@ -1,0 +1,146 @@
+// Documentation copy only. All secret values remain environment SecretRefs.
+{
+  agents: {
+    defaults: {
+      workspace: '/home/operator/.openclaw/workspace',
+      model: { primary: 'ollama/gpt-oss:20b', fallbacks: [] },
+      sandbox: { mode: 'off', workspaceAccess: 'rw' },
+    },
+  },
+  tools: {
+    profile: 'full',
+    fs: { workspaceOnly: false },
+    exec: {
+      host: 'gateway',
+      mode: 'full',
+      timeoutSeconds: 300,
+      pathPrepend: ['/home/operator/.openclaw/bin'],
+    },
+    elevated: { enabled: false },
+  },
+  memory: {
+    citations: 'auto',
+    search: {
+      enabled: true,
+      rememberAcrossConversations: false,
+      sources: ['memory'],
+      extraPaths: ['notes', 'LISTS.md'],
+      provider: 'ollama',
+      model: 'nomic-embed-text',
+      fallback: 'none',
+      remote: {
+        baseUrl: 'http://127.0.0.1:11434',
+        apiKey: {
+          source: 'env',
+          provider: 'default',
+          id: 'OLLAMA_API_KEY',
+        },
+        batch: { enabled: false },
+      },
+      multimodal: { enabled: false },
+      cache: { enabled: true },
+    },
+  },
+  models: {
+    mode: 'replace',
+    providers: {
+      ollama: {
+        baseUrl: 'http://127.0.0.1:11434',
+        api: 'ollama',
+        apiKey: 'ollama-local',
+        timeoutSeconds: 300,
+        models: [{
+          id: 'gpt-oss:20b',
+          name: 'gpt-oss:20b',
+          reasoning: true,
+          input: ['text'],
+          contextWindow: 32768,
+          contextTokens: 32768,
+          maxTokens: 2048,
+          params: { num_ctx: 32768, keep_alive: '30m' },
+        }],
+      },
+    },
+  },
+  gateway: {
+    mode: 'local',
+    port: 18789,
+    bind: 'lan',
+    auth: {
+      mode: 'token',
+      token: {
+        source: 'env',
+        provider: 'default',
+        id: 'OPENCLAW_GATEWAY_TOKEN',
+      },
+      rateLimit: {
+        maxAttempts: 10,
+        windowMs: 60000,
+        lockoutMs: 300000,
+        exemptLoopback: true,
+      },
+    },
+    controlUi: {
+      allowedOrigins: [
+        'http://10.23.45.67:18789',
+        'http://127.0.0.1:18789',
+        'http://localhost:18789',
+      ],
+      communityInvite: false,
+    },
+    tailscale: { mode: 'off' },
+  },
+  session: { dmScope: 'per-account-channel-peer' },
+  plugins: {
+    entries: {
+      ollama: { enabled: true },
+      discord: { enabled: true },
+    },
+  },
+  channels: {
+    discord: {
+      enabled: true,
+      token: {
+        source: 'env',
+        provider: 'default',
+        id: 'DISCORD_BOT_TOKEN',
+      },
+      dmPolicy: 'allowlist',
+      allowFrom: [
+        '100000000000000004',
+        '100000000000000005',
+      ],
+      groupPolicy: 'allowlist',
+      defaultTo: '100000000000000001',
+      guilds: {
+        '100000000000000006': {
+          requireMention: false,
+          users: [
+            '100000000000000004',
+            '100000000000000005',
+          ],
+          channels: {
+            '100000000000000001': {
+              enabled: true,
+              requireMention: false,
+              users: [
+                '100000000000000004',
+                '100000000000000005',
+              ],
+            },
+            '100000000000000002': {
+              enabled: true,
+              requireMention: false,
+              users: ['100000000000000005'],
+            },
+            '1538572080482754692': {
+              enabled: true,
+              requireMention: false,
+              users: ['100000000000000004'],
+            },
+          },
+        },
+      },
+    },
+  },
+}
