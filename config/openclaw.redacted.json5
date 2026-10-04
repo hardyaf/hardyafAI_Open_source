@@ -16,8 +16,43 @@
           theme: 'Calm, capable, perceptive household steward',
         },
       },
+      natasha: {
+        name: 'natasha',
+        workspace: '/home/codex/.openclaw/workspace-natasha',
+        model: { primary: 'ollama/gpt-oss:20b', fallbacks: [] },
+        memory: {
+          search: { rememberAcrossConversations: true },
+        },
+        identity: {
+          name: 'Jarvis',
+          emoji: 'J',
+          theme: 'Calm, capable, perceptive household steward',
+        },
+      },
     },
   },
+  bindings: [
+    {
+      agentId: 'natasha',
+      match: {
+        channel: 'discord',
+        accountId: 'default',
+        peer: { kind: 'channel', id: '1538560098786349156' },
+      },
+    },
+    {
+      agentId: 'natasha',
+      match: {
+        channel: 'discord',
+        accountId: 'default',
+        peer: { kind: 'direct', id: '615698501061574666' },
+      },
+    },
+    {
+      agentId: 'main',
+      match: { channel: 'discord', accountId: '*' },
+    },
+  ],
   tools: {
     profile: 'full',
     fs: { workspaceOnly: false },
@@ -37,7 +72,7 @@
       sources: ['memory'],
       extraPaths: ['notes', 'LISTS.md'],
       provider: 'ollama',
-      model: 'nomic-embed-text',
+      model: 'qwen3-embedding:8b',
       fallback: 'none',
       remote: {
         baseUrl: 'http://127.0.0.1:11434',
@@ -106,6 +141,22 @@
     entries: {
       ollama: { enabled: true },
       discord: { enabled: true },
+      'active-memory': {
+        enabled: true,
+        config: {
+          enabled: true,
+          mode: 'escalate',
+          agents: ['natasha'],
+          allowedChatTypes: ['direct', 'channel', 'explicit'],
+          queryMode: 'recent',
+          promptStyle: 'preference-only',
+          thinking: 'off',
+          timeoutMs: 15000,
+          maxSummaryChars: 320,
+          logging: true,
+          persistTranscripts: false,
+        },
+      },
     },
   },
   channels: {

@@ -61,7 +61,7 @@ account, channel, and user.
 - Maximum output: 2,048
 - Provider timeout: 300 seconds
 - Ollama parameters: `num_ctx=32768`, `keep_alive=30m`
-- Memory embeddings: `ollama/nomic-embed-text`
+- Memory embeddings: `ollama/qwen3-embedding:8b` (4096 dimensions)
 - Embedding fallback: `none`
 
 Host tools use OpenClaw's `full` profile and execute as the `codex`
@@ -71,13 +71,27 @@ boundary.
 
 ## Household data
 
-Persistent household data is ordinary Markdown under
-`/home/codex/.openclaw/workspace`:
+Persistent household data is ordinary Markdown in isolated workspaces:
 
-- Shared lists: `LISTS.md`
-- Shared notes: `notes/household/`
-- Natasha private notes/lists: `notes/natasha/`
-- Operator notes: `notes/operator/`
+- Main/shared: `/home/codex/.openclaw/workspace`
+- Natasha private: `/home/codex/.openclaw/workspace-natasha`
+- Each workspace: `USER.md`, `MEMORY.md`, `memory/`, `notes/`,
+  and `LISTS.md`
+- Derived indexes: `/home/codex/.openclaw/agents/<id>/agent/openclaw-agent.sqlite`
+
+Useful memory checks:
+
+```bash
+/home/codex/.openclaw/bin/openclaw agents list --bindings --json
+/home/codex/.openclaw/bin/openclaw memory status --deep --json
+/home/codex/.openclaw/bin/openclaw memory index --agent natasha --force
+/home/codex/.openclaw/bin/openclaw plugins info active-memory --json
+```
+
+Natasha's direct messages enable cross-conversation transcript recall. Her
+private Discord channel uses the same isolated agent and file memory, but
+OpenClaw does not ingest channel transcripts into Remember across
+conversations.
 
 Google Workspace uses `gog` `0.43.0`, OAuth client `house`, and account
 `hardy.aibot@gmail.com`. Calendar writes must use an explicit calendar ID and

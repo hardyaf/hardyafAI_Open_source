@@ -71,3 +71,43 @@ Security:
   tools and about the personal-assistant trust model. These are deliberate
   baseline choices. The process remains an unprivileged OS user, secrets
   remain out of this repository, and LAN management is token protected.
+
+## Isolated-agent and memory upgrade
+
+Run later on 2026-10-04:
+
+- Added agent `natasha` with its own workspace, session store, and database.
+- Verified exact Discord bindings for Natasha's private channel and DM; the
+  lower-priority wildcard route remains on `main`.
+- Enabled the bundled Active Memory 2026.9.8 plugin for Natasha only in
+  `escalate` mode.
+- Replaced `nomic-embed-text` with local `qwen3-embedding:8b` and rebuilt
+  both indexes. Deep probes passed; both vector indexes are complete at 4096
+  dimensions with hybrid FTS/vector search and no fallback.
+- An isolation query returned Natasha's MEMORY.md at score 0.870 from the
+  Natasha index and no match from the main index.
+- A non-delivered end-to-end Natasha turn read USER.md and correctly reported
+  only name and timezone. The execution receipt proves a successful real
+  `read` tool call.
+
+That same turn recorded three failed memory-search attempts before succeeding
+through a direct file read. The memory CLI and embedding probes independently
+passed. This is further evidence of `gpt-oss:20b` tool-orchestration
+weakness, not an index, permission, or GPU integration failure.
+
+A separate cross-session canary was not accepted as an Active Memory pass.
+Gateway logs showed `session-ineligible` because the turn originated from
+the management CLI, not an eligible private inbound conversation. The model
+eventually returned `UNKNOWN`, correctly refusing to invent the value, but
+spent 43 seconds and many failed tool attempts getting there. Both test
+sessions and their index chunks were removed; the generated test artifacts
+were moved to the migration backup, and a final canary search returned no
+matches. Active Memory injection remains to be accepted from Natasha's first
+real Discord DM.
+
+During the rebuild, Ollama reported approximately 12 GB for the chat model and
+11 GB for the embedder; GPU use peaked at 23,061 MiB of 24,576 MiB. The
+embedder has a short idle lifetime, but concurrent embedding and GPU OCR are
+resource-constrained until the second RTX 3090 is installed.
+After testing, the embedder was explicitly unloaded and GPU use returned to
+13,416 MiB with only `gpt-oss:20b` resident.
