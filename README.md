@@ -20,3 +20,6 @@ Current deployment:
 No credentials are stored here. See the [operating runbook](docs/operations.md),
 [redacted baseline](docs/baseline.md), [acceptance evidence](docs/acceptance.md),
 and [redacted active settings](config/openclaw.redacted.json5).
+
+The active Jarvis identity and personality are mirrored under
+`config/workspace/` for review and version history.

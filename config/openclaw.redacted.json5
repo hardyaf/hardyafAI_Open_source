@@ -6,6 +6,17 @@
       model: { primary: 'ollama/gpt-oss:20b', fallbacks: [] },
       sandbox: { mode: 'off', workspaceAccess: 'rw' },
     },
+    entries: {
+      main: {
+        name: 'main',
+        workspace: '/home/operator/.openclaw/workspace',
+        identity: {
+          name: 'Jarvis',
+          emoji: 'J',
+          theme: 'Calm, capable, perceptive household steward',
+        },
+      },
+    },
   },
   tools: {
     profile: 'full',
