@@ -1,0 +1,63 @@
+{
+  agents: {
+    entries: {
+      natasha: {
+        memory: {
+          search: {
+            rememberAcrossConversations: true,
+          },
+        },
+      },
+    },
+  },
+  bindings: [
+    {
+      agentId: 'natasha',
+      comment: 'Adult private Discord channel',
+      match: {
+        channel: 'discord',
+        accountId: 'default',
+        peer: { kind: 'channel', id: '100000000000000002' },
+      },
+    },
+    {
+      agentId: 'natasha',
+      comment: 'Adult Discord direct messages',
+      match: {
+        channel: 'discord',
+        accountId: 'default',
+        peer: { kind: 'direct', id: '100000000000000005' },
+      },
+    },
+    {
+      agentId: 'main',
+      comment: 'Default Discord route',
+      match: { channel: 'discord', accountId: '*' },
+    },
+  ],
+  memory: {
+    search: {
+      model: 'qwen3-embedding:8b',
+    },
+  },
+  plugins: {
+    entries: {
+      'active-memory': {
+        enabled: true,
+        config: {
+          enabled: true,
+          mode: 'escalate',
+          agents: ['natasha'],
+          allowedChatTypes: ['direct', 'channel', 'explicit'],
+          queryMode: 'recent',
+          promptStyle: 'preference-only',
+          thinking: 'off',
+          timeoutMs: 15000,
+          maxSummaryChars: 320,
+          logging: true,
+          persistTranscripts: false,
+        },
+      },
+    },
+  },
+}
