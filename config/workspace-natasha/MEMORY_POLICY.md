@@ -3,7 +3,8 @@
 Use one canonical destination for each item:
 
 - Calendar events: the selected Google Calendar only.
-- Tasks and shopping items: LISTS.md until Google Tasks is deliberately enabled.
+- Adult-private tasks: LISTS.md. Explicit shared shopping and household tasks:
+  the neutral shared household list managed by household-capture.
 - Stable personal preferences and relationships: USER.md.
 - Durable decisions, lessons, and non-profile facts: MEMORY.md.
 - Dated observations and conversation context: memory/YYYY-MM-DD.md.

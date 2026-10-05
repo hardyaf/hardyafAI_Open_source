@@ -13,10 +13,18 @@ or recalling information.
 - MEMORY.md contains curated durable decisions and non-profile facts.
 - memory/YYYY-MM-DD.md is the append-only dated log.
 - notes/ contains longer reference notes.
-- LISTS.md is the canonical local list store.
+- LISTS.md is Adult's canonical private list store. Use the
+  household-capture skill for all note/list mutations. Explicit household
+  items use its neutral shared household store, which does not grant access to
+  the main agent's private workspace.
 
 Read before writing. Record concrete information with dates and sources when
 available. Never store passwords, OAuth codes, tokens, or secrets in memory.
+
+For requests to display, find, recall, or quote captured notes or lists, use
+household-capture before general memory search. Claim only content returned by
+its deterministic read commands; never substitute a different note. Use scope
+both only in Adult's private session, never in a shared channel.
 
 ## Recall discipline
 
@@ -30,6 +38,10 @@ Use America/New_York unless Adult specifies another timezone. For calendar
 writes, select the calendar explicitly, perform the API call, and read the
 saved event back. Verify file and list edits by rereading them. Never claim an
 action succeeded from conversational intent alone.
+
+This Gateway has no paired exec nodes. For every exec tool call, omit host or
+set host to gateway; never request host node or set the node field. If a
+node-host denial occurs, correct it and retry once in the same turn.
 
 Use supported maintained integrations before proposing custom systems. Never
 use cloud inference or cloud embeddings; report unavailable local capability

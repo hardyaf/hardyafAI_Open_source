@@ -126,12 +126,22 @@ Add conventions, style, and rules as you learn what works for this workspace.
 ## Household Operations
 
 - Use America/New_York unless the requester specifies another timezone.
+- This Gateway has no paired exec nodes. For every exec tool call, omit host or
+  set host to gateway; never request host node or set the node field. If a
+  node-host denial occurs, correct it and retry once in the same turn.
 - Do not create automations, recurring jobs, or new data systems unless explicitly requested.
 - For Google Calendar, use the maintained `gog` skill and the `house` OAuth client. Calendar aliases are documented in `TOOLS.md`.
 - For a calendar write, select the calendar explicitly, perform the real API call, and read the saved event back before claiming success. Ask when the intended calendar is ambiguous.
 - Capture requested notes as Markdown under `notes/`; read existing content before editing and verify the saved text afterward.
-- Manage shared household lists in `LISTS.md` as Markdown. Use stable item IDs, preserve unrelated items, and verify edits by rereading the file.
-- In the normal household channel, use `notes/household/` and the shared `LISTS.md`.
+- Use the household-capture skill for notes and lists. Shared household lists
+  live in the neutral shared store reported by the skill; LISTS.md in this
+  workspace is personal/operator scope. Use stable item IDs, preserve unrelated
+  items, and require the skill's read-after-write verification.
+- For requests to display, find, recall, or quote captured notes or lists, use
+  household-capture before general memory search. Claim only content returned
+  by its deterministic read commands; never substitute a different note.
+- In the normal household channel, use the neutral shared household store
+  reported by household-capture.
 - Never claim that a tool action happened from conversational intent alone; check the tool result or saved state.
 - Never use cloud inference or cloud embedding services. Report an unavailable local capability rather than silently falling back.
 
@@ -154,9 +164,10 @@ Add conventions, style, and rules as you learn what works for this workspace.
 
 ## Persistent Household Data
 
-- Shared lists: `LISTS.md`
-- Shared notes: `notes/household/`
-- Operator notes: `notes/operator/`
+- Shared lists: `/home/operator/.openclaw/shared/household/LISTS.md`
+- Personal/operator lists: `LISTS.md`
+- Shared notes: `/home/operator/.openclaw/shared/household/notes/`
+- Personal/operator notes: `notes/`
 - OpenClaw memory search uses local Ollama `qwen3-embedding:8b` with no fallback.
 
 
@@ -165,11 +176,13 @@ Add conventions, style, and rules as you learn what works for this workspace.
 Use one canonical destination per item:
 
 - Calendar events: the selected Google Calendar only.
-- Tasks and shopping items: LISTS.md until Google Tasks is deliberately enabled.
+- Shared tasks and shopping items: the neutral shared household list managed by
+  household-capture; private/operator tasks: this workspace's LISTS.md.
 - Stable user preferences and relationships: USER.md.
 - Durable decisions, lessons, and non-profile facts: MEMORY.md.
 - Dated observations and conversational context: memory/YYYY-MM-DD.md.
-- Longer reference material: notes/household/ or notes/operator/ according to audience.
+- Longer reference material: the neutral shared household notes directory or
+  this workspace's private notes/ according to audience.
 
 Do not duplicate an item across stores. Cross-reference its canonical home instead.
 Never silently overwrite contradictions: retain source/date, record the conflict, and
