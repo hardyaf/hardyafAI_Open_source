@@ -153,3 +153,51 @@ embeddings, or GPU execution.
 The pre-change live files are recoverable from:
 
     /home/operator/.openclaw/backups/household-capture-20261005T002553
+
+## Local PDF extraction upgrade
+
+Run on 2026-10-05:
+
+- Installed a user-owned Python 3.12.15 environment with uv 0.12.23. The
+  direct reader packages are Docling 2.133.0, Docling Core 2.99.0,
+  Docling Parse 7.22.1, RapidOCR 3.9.2, and pypdfium2 5.14.0. PyTorch
+  2.14.1+cpu and torchvision 0.29.1+cpu make the structured path explicitly
+  CPU-only.
+- Prefetched the Heron layout, TableFormer, and English RapidOCR ONNX
+  artifacts. Runtime remote services, external plugins, and model downloads
+  are disabled. The complete environment is about 2.3 GiB, including 700 MiB
+  of model artifacts.
+- Deployed the first-party `local-documents` skill to both `main` and
+  `natasha`. OpenClaw reports it eligible and model-visible for both.
+- A born-digital nine-page Docling technical report used the fast
+  pypdfium2 path and produced bounded Markdown and JSON.
+- The exact Oscoda Township notice that previously failed had sparse embedded
+  text, correctly fell back to Docling, and produced one page of structured
+  Markdown. SHA-256:
+  `a881f07e50583feb02bb3cf30a9909dc114c2241a4d6587459fb09c838699a7a`.
+- The result contained all 22 meeting dates for 2026, the common 6:30 p.m.
+  time, the Robert J. Parks Library address, and page-1 evidence.
+- A fresh natural-language Jarvis turn completed in two assistant turns with
+  exactly one successful `exec` call and no tool failures. It independently
+  returned the same 22 dates, time, location, and page evidence. No calendar
+  tool ran and no calendar event was written.
+- Safety probes rejected a loopback URL, a local file outside
+  `/home/operator/.openclaw`, and an out-of-range inline excerpt size.
+- The final GPU process list contained only Ollama at 13,398 MiB. Gateway
+  health passed, Discord remained ready, and 41 GiB remained free on root.
+
+The first install test exposed a mismatched non-CPU torchvision wheel. This
+was a configuration/dependency failure and was fixed by installing the
+matching `0.29.1+cpu` wheel. The first two model-driven acceptance attempts
+also failed: one invented a skill tool ID and overflowed context; the next
+found the skill but explored the implementation and emitted invalid empty
+exec host/node fields. Those were `gpt-oss:20b` orchestration mistakes. The
+hot path was reduced to the model-visible `read-pdf` command with an exact
+minimal exec rule, after which the consolidated turn passed. Parsing,
+permissions, OCR, and hardware were healthy in the final pass.
+
+Deployment hashes:
+
+- `read-pdf`: `56576c33fa481d24422ef02182e22d10e9a54185d5eda9a18ea6793d953c0ac0`
+- Main and Adult skill card:
+  `b86a971373779373c3edd67a3d487fb1cf43c673c01e63a24d02b1fbdb670762`

@@ -115,6 +115,18 @@ Natural-language note and list capture uses the first-party
 [`household-capture.md`](household-capture.md) for storage, recovery, dashboard,
 and verification details.
 
+PDF URLs and attachments use the first-party `local-documents` skill. Its
+single entry point is:
+
+```bash
+/home/operator/.openclaw/bin/read-pdf --url 'https://example.org/document.pdf' --mode auto
+```
+
+It runs a bounded fast text path or the pinned CPU-only Docling/RapidOCR
+fallback and returns local Markdown/JSON evidence. See
+[`local-documents.md`](local-documents.md) for limits, storage, versions, and
+upgrade procedure. It does not authorize downstream calendar writes.
+
 For the intended Owner and Adult calendars, each owner must share the calendar
 with `hardy.aibot@gmail.com` and grant Make changes to events. No existing
 credential can create those external shares.

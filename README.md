@@ -27,3 +27,7 @@ The active Jarvis identity and personality are mirrored under
 Natural-language household notes and lists use the first-party
 `household-capture` workspace skill. Its design and operating checks are in
 [`docs/household-capture.md`](docs/household-capture.md).
+
+PDF documents use the first-party `local-documents` workspace skill with a
+fast local text path and a pinned, CPU-only Docling/RapidOCR fallback. See
+[`docs/local-documents.md`](docs/local-documents.md).
