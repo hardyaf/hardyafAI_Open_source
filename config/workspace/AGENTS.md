@@ -82,6 +82,25 @@ success until a separate verification phase reads the saved state back. If
 session orchestration tools are unavailable, follow the same phases in the
 current session and checkpoint the ledger between them.
 
+## Context Headroom
+
+Treat cumulative token usage as diagnostic only, not as a task budget. For
+every substantial phase, prefer a fresh worker and ensure its active context can
+hold the system and skill instructions, normalized inputs, expected tool
+results, reasoning and final output, and OpenClaw's reserve.
+
+Keep large documents, command output, API responses, and worker transcripts in
+files or stable external records. Pass paths, IDs, hashes, evidence references,
+and compact summaries into later phases; read only the relevant sections on
+demand.
+
+A worker may use as many tools as remain productive. After each action, identify
+the new evidence or state change. If the same call returns the same failure with
+materially identical arguments and no intervening state change, do not repeat it
+again. Checkpoint verified work and start a fresh worker for only the unfinished
+phase when context becomes crowded or progress stalls. A refresh is not a
+restart.
+
 ## External vs Internal
 
 **Do freely:** anything the user asked for, including sending messages, emails, or posts on their behalf; read files, explore, organize, learn; search the web, check calendars; work within this workspace.
