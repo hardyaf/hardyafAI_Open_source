@@ -127,6 +127,14 @@ fallback and returns local Markdown/JSON evidence. See
 [`local-documents.md`](local-documents.md) for limits, storage, versions, and
 upgrade procedure. It does not authorize downstream calendar writes.
 
+Complex requests use the first-party `task-conductor` skill. Jarvis keeps the
+user-facing session as the conductor, runs substantial gather, act, and verify
+phases in fresh worker sessions, and records compact recovery state under
+`.openclaw/task-ledgers/`. The initial policy uses semantic milestones and does
+not impose numerical tool-call, turn, or concurrency limits. See
+[`task-conductor.md`](task-conductor.md) for triggers, recovery, and failure
+classification.
+
 For the intended Owner and Adult calendars, each owner must share the calendar
 with `hardy.aibot@gmail.com` and grant Make changes to events. No existing
 credential can create those external shares.
