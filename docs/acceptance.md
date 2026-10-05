@@ -201,3 +201,60 @@ Deployment hashes:
 - `read-pdf`: `56576c33fa481d24422ef02182e22d10e9a54185d5eda9a18ea6793d953c0ac0`
 - Main and Adult skill card:
   `b86a971373779373c3edd67a3d487fb1cf43c673c01e63a24d02b1fbdb670762`
+
+## Calendar routing and gog credential-safety remediation
+
+Run on 2026-10-05:
+
+- Root cause of the Discord failure was command construction, not missing
+  access. The model used `house` as `--account` even though it is the OAuth
+  client name, then incorrectly asked for credentials.
+- The authenticated identity is always `hardy.aibot@gmail.com`, the OAuth
+  client is always `house`, and the positional calendar ID alone selects
+  House, Owner, or Adult.
+- Generic destinations such as `the calendar`, `our calendar`, `family
+  calendar`, and `household calendar` now route to House. Only the exact
+  destination phrases `Owner's calendar`, `Owner calendar`, `Adult's
+  calendar`, or `Adult calendar` select a personal calendar. A phrase
+  such as `family calendar for Owner` remains House.
+- The critical resolver, exact supported `gog calendar create` flags, gateway
+  exec host, timezone format, auth check, and credential-safety rules are at
+  the top of `AGENTS.md` so they are always injected. The workspace `gog`
+  skill carries the fuller read/write and readback procedure.
+- Every authenticated command uses
+  `--account hardy.aibot@gmail.com --client house`. Event wall times use
+  `YYYY-MM-DDTHH:MM:SS --timezone America/New_York`, without a guessed
+  numeric offset. A successful write must be read back by returned event ID.
+- Auth status is checked only with `gog auth list`. The policy forbids
+  reading, decoding, printing, copying, or hex-dumping credential, token, and
+  keyring files.
+
+The local model exposed two instruction-salience failures during diagnostics:
+it initially treated `for Owner` as the destination and later invented
+unsupported `--title`, `--start`, and `--end` flags when the on-demand
+skill read failed. Those were model mistakes; Google auth, OpenClaw, and gog
+were healthy. Moving the self-contained contract to the beginning of the
+always-injected `AGENTS.md` removed that dependency.
+
+The final isolated acceptance run
+`3bd2737e-30ad-4f88-a901-ab7c3a181dfb` used `gpt-oss:20b` and completed in
+two assistant turns with exactly one successful `exec` call and zero tool
+failures. For the adversarial wording `family calendar for Owner`, it selected
+House (`hardy.aibot@gmail.com`), retained account
+`hardy.aibot@gmail.com` and client `house`, emitted the supported
+`--summary/--from/--to/--timezone` command, and confirmed the existing auth
+profile with `gog auth list`. No calendar create call ran and no event was
+written. The final prompt used 11,597 tokens, retained 7,816 tokens of prompt
+headroom, and did not compact.
+
+OpenClaw configuration validation passed, the `gog` skill remained eligible,
+and the gateway remained active. Deployment hashes:
+
+- Main `AGENTS.md`:
+  `3e7e9295440a11b8b78f1e6ef964c1ea74dd10dd04917f60a499db220151c2cf`
+- Main `skills/gog/SKILL.md`:
+  `cf7345da86f98682b552d8c29f45488d7dbc7a158576a949be05b1ce9638d354`
+
+The original pre-change live files are recoverable from:
+
+    /home/operator/.openclaw/workspace/.openclaw/backups/calendar-routing-20261005T000635

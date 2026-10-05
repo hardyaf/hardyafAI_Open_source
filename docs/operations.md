@@ -99,6 +99,28 @@ Google Workspace uses `gog` `0.43.0`, OAuth client `house`, and account
 `hardy.aibot@gmail.com`. Calendar writes must use an explicit calendar ID and
 be read back before success is reported.
 
+The account and client select the existing authorization, not the destination
+calendar. Every authenticated command passes
+`--account hardy.aibot@gmail.com --client house`. For calendar commands, the
+positional calendar ID selects House (`hardy.aibot@gmail.com`), Owner
+(`person-003@example.invalid`), or Adult (`person-004@example.invalid`). Generic references
+such as "the calendar", "our calendar", "family calendar", and "household
+calendar" default to House. Only an explicitly named destination calendar
+overrides that default; attendees and phrases such as "for Owner" do not.
+
+Calendar creation uses local wall times with
+`--timezone America/New_York`, followed by `gog calendar event` readback using
+the returned event ID. Do not manually select a numeric offset. Inspect
+authorization only with `gog auth list`; never inspect gog credential, token,
+or keyring files, and never request credentials when that command already
+reports `hardy.aibot@gmail.com` with client `house`.
+
+The complete non-negotiable calendar route and command shape live at the top
+of `AGENTS.md`, which OpenClaw injects on every main-agent turn. The
+workspace `gog` skill is the maintained deeper reference, but correct basic
+calendar routing does not depend on the local model successfully loading that
+skill.
+
 Google Keep is a genuine integration gap: gog supports it only for Workspace
 service accounts with domain-wide delegation, not this consumer OAuth account.
 Markdown notes are the maintained local alternative.
