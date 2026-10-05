@@ -13,6 +13,30 @@ answer. Workers handle semantic phases in fresh context.
 Do not impose a numerical limit on tool calls, turns, or concurrent workers.
 Split work at meaningful milestones and respect dependencies between phases.
 
+## Context headroom
+
+Treat cumulative token usage as diagnostic only. It measures local computation,
+not how much context remains for the current inference.
+
+For every substantial phase, ensure the worker's active context can hold:
+
+- system and applicable skill instructions;
+- normalized inputs and evidence references;
+- expected tool results;
+- reasoning and final output;
+- the configured OpenClaw reserve.
+
+Prefer a fresh worker when inherited history would reduce useful headroom. At
+phase start and after an unusually large result, inspect `session_status` when
+it is available. If the next source or result cannot fit with the reserve
+intact, checkpoint the phase and start a fresh successor. If a fresh standard
+worker still cannot fit it, mark `larger-context-needed` in the ledger and
+process the source as evidence-preserving chunks or route to an explicitly
+configured larger-context profile.
+
+Do not silently raise the model context, reduce the reserve, or enable a cloud
+fallback. Those are configuration changes, not worker decisions.
+
 ## Decide whether to stage
 
 Use this skill when any of these conditions materially affects the work:
@@ -44,6 +68,22 @@ Planning does not grant new authority. Do not turn a read request into a write,
 contact another person, or broaden the destination merely because a worker
 suggests it.
 
+## Artifact-first tool results
+
+Do not paste large documents, command output, API responses, or worker
+transcripts into later prompts. When possible, save the complete result as an
+artifact and pass only:
+
+- its path or stable external ID;
+- a hash or source reference;
+- a compact summary;
+- the exact pages, rows, records, or sections needed for the current phase.
+
+Read additional portions on demand. Preserve evidence coordinates so later
+verification remains grounded. When a tool only returns inline data, request
+bounded fields, pagination, or a targeted query rather than carrying unrelated
+output forward.
+
 ## Task ledger
 
 Create a Markdown ledger under:
@@ -59,7 +99,10 @@ Use this structure:
     - Authority: <explicitly allowed reads and changes>
     - Confirmed destinations: <accounts, calendars, paths, channels, or unknown>
     - Open questions: <only material unresolved choices>
+    - Context plan: standard-32k | larger-context-needed
+    - Artifact inputs: <paths, stable IDs, hashes, and relevant sections>
     - Source evidence: <paths, URLs, hashes, page references, or record IDs>
+    - Progress marker: <last new evidence or state change>
     - Completed actions: <action, timestamp, destination, returned stable ID>
     - Verification: <query performed and observed result>
     - Next phase: <one concrete next step>
@@ -128,19 +171,43 @@ failure.
 
 ## Worker-session protocol
 
-Use `sessions_spawn` for an isolated worker when it is available. Include a
-clear phase assignment and instruct the worker to return:
+Use `sessions_spawn` for an isolated worker when it is available. Start
+substantial gather, act, and verify phases with fresh context. Pass only the
+phase assignment, authority boundary, applicable skill, ledger path, normalized
+inputs, and artifact references. Instruct the worker to return:
 
     status: complete | needs-input | failed
-    evidence: <stable IDs and paths only>
+    context: standard-32k | larger-context-needed
+    evidence: <stable IDs, paths, hashes, and relevant sections only>
+    artifacts: <complete-result references>
+    progress: <last new evidence or state change>
     result: <compact structured phase output>
     unresolved: <material questions only>
     next: <recommended next phase>
 
 Use `sessions_yield` when the parent should wait for worker results. Update the
-ledger after accepting a result. Do not expose internal worker chatter to the
+ledger after accepting a result. Return compact structured results to the
+parent, never the child transcript. Do not expose internal worker chatter to the
 user; provide useful progress only when the work is long-running or needs a
 decision.
+
+## Progress and refresh
+
+A worker may use as many tools as remain productive. After every action,
+identify what new evidence or state change occurred. Do not repeat the same
+tool call with materially identical arguments after it returns the same failure
+without an intervening state change.
+
+When progress stalls or active context becomes crowded:
+
+1. Save completed actions, stable IDs, artifact references, the progress marker,
+   and the exact next step.
+2. End the current worker.
+3. Start a fresh worker for only the unfinished phase.
+4. Check the real destination before repeating an external write.
+
+A refresh is not a restart. Preserve verified completed work and do not replay
+earlier phases merely to rebuild conversational context.
 
 ## Recovery
 
@@ -163,4 +230,6 @@ Never claim rollback unless the destination confirms it.
 If session orchestration tools are unavailable, perform the same semantic
 phases in the current session. Update and reread the ledger between phases,
 keep tool output summaries compact, and retain the independent verification
-requirement.
+requirement. When the next phase cannot fit with adequate headroom, checkpoint
+the ledger and use compaction or a fresh session instead of forcing the work
+into crowded context.

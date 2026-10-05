@@ -29,6 +29,29 @@ The conductor uses semantic milestones rather than numerical tool-call, turn,
 or concurrency limits. This is intentional for the initial rollout; behavior
 will be observed before adding restraints.
 
+## Context allocation
+
+Cumulative token processing is diagnostic only. The governing measurement is
+the active prompt and the headroom remaining for expected tool results,
+reasoning, output, and OpenClaw's reserve.
+
+The current standard profile remains:
+
+- model context: 32,768 tokens;
+- preferred prompt budget before reserve: 24,576 tokens;
+- reserve: 8,192 tokens;
+- maximum model output: 2,048 tokens.
+
+Each substantial phase should begin in a fresh worker. Complete source material
+stays in files or external records; workers pass paths, stable IDs, hashes,
+evidence coordinates, and compact normalized results. If a fresh standard
+worker cannot fit the phase with the reserve intact, the ledger records
+`larger-context-needed` and the source is processed in grounded chunks or routed
+to a separately approved larger-context profile.
+
+No dynamic `num_ctx` change, reserve reduction, cloud fallback, tool-call cap,
+turn cap, or concurrency cap is part of this policy.
+
 ## Recovery ledger
 
 Active ledgers are Markdown under:
@@ -39,9 +62,9 @@ Active ledgers are Markdown under:
 
 Completed and non-resumable failed ledgers move to sibling `completed/` and
 `failed/` directories. A ledger stores the goal, authority, confirmed
-destinations, evidence references, stable action IDs, verification, next phase,
-and failure class. It must never contain credentials, authorization codes, or
-large raw tool output.
+destinations, context plan, artifact inputs, progress marker, evidence
+references, stable action IDs, verification, next phase, and failure class. It
+must never contain credentials, authorization codes, or large raw tool output.
 
 The ledger is operational recovery state, not long-term household memory. It
 allows a fresh worker to resume only the unfinished phase after malformed model
@@ -84,7 +107,20 @@ Validated on OpenClaw 2026.9.8 with `ollama/gpt-oss:20b` on 2026-10-05 UTC.
 
 The worker test used ten tool calls and encountered two recoverable
 model-orchestration mistakes: an empty initial tool search and an incorrect
-first skill-read path. It processed 103,587 cumulative tokens across repeated
-model calls; the largest reported final call was 16,529 tokens, below the
-32,768-token context window. This is the initial efficiency baseline. No
-tool-call, turn, or concurrency restraint was added.
+first skill-read path. The complete parent-and-child round trip processed about
+129,408 cumulative tokens. The parent used 116,746 input and 3,547 output
+tokens across nine calls; the child used 8,868 input and 247 output tokens.
+The largest individual parent prompt was 16,510 tokens, below the 32,768-token
+context window and the 24,576-token preferred prompt budget before reserve.
+Cumulative processing is retained as a compute diagnostic; peak active prompt,
+remaining headroom, refreshes, and repeated no-progress actions are the
+operational metrics. No tool-call, turn, or concurrency restraint was added.
+
+Context-headroom policy run `d223889b-69c5-4e2e-9092-9405165ff8d3`
+loaded the revised skill with one successful read and no tool failures. Jarvis
+used active reserve as the continuation gate, kept complete results
+artifact-backed, stopped identical no-progress retries, and applied no
+numerical caps. The final call used a 12,694-token prompt; OpenClaw's pre-prompt
+estimate was 15,662 of the 24,576-token preferred prompt budget, leaving 8,914
+tokens before reserve. No compaction, external service access, or household
+data mutation occurred.
