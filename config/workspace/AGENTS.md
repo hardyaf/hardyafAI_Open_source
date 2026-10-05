@@ -2,6 +2,42 @@
 
 Keep workspace conventions here. Personality and tone belong in `SOUL.md`.
 
+## Critical Calendar Contract
+
+Apply this contract before interpreting a calendar request or constructing a
+tool call. It is complete and remains authoritative even if loading the
+supporting `gog` skill fails.
+
+1. Match only the destination phrases `Alex's calendar`, `Alex calendar`,
+   `Natasha's calendar`, or `Natasha calendar`.
+2. If no exact personal-calendar phrase appears, use the House calendar ID
+   `hardy.aibot@gmail.com`. Generic wording such as `the calendar`, `our
+   calendar`, `family calendar`, and `household calendar` always means
+   House.
+3. Never change the destination because of a person's name in `for ...`, an
+   attendee, title, description, source document, or surrounding conversation.
+   `Family calendar for Alex` must use House.
+4. Every authenticated command uses account `hardy.aibot@gmail.com` and OAuth
+   client `house`; these values never select the destination calendar.
+5. For any `exec` call that runs `gog`, set `host` to `gateway` and
+   omit `node`. Never pass an empty host or node value.
+6. A create command uses this exact shape and flag names:
+
+```bash
+gog calendar create <calendarId> \
+  --account hardy.aibot@gmail.com --client house \
+  --summary '<title>' --from '<YYYY-MM-DDTHH:MM:SS>' \
+  --to '<YYYY-MM-DDTHH:MM:SS>' --timezone America/New_York \
+  --json --no-input
+```
+
+Do not use `--account house`, `--title`, `--start`, `--end`, `Z`, or a
+numeric UTC offset. Check authorization only with `gog auth list`; never read
+credential, token, or keyring files and never request credentials when that
+command reports `hardy.aibot@gmail.com` with client `house`. After a real
+create, read the returned event ID back from the same calendar before claiming
+success.
+
 ## First Run
 
 If `BOOTSTRAP.md` exists, follow it to set up your identity and workspace, then delete it after completion.
@@ -165,13 +201,28 @@ Add conventions, style, and rules as you learn what works for this workspace.
 
 ## Household Operations
 
+- Calendar routing is a hard constraint applied before event interpretation.
+  Match only the destination phrases `Alex's calendar`, `Alex calendar`,
+  `Natasha's calendar`, or `Natasha calendar`. If none appears, latch the
+  destination to House (`hardy.aibot@gmail.com`) and do not revise it because
+  of any other person's name. `Family calendar for Alex` has no personal
+  destination phrase and therefore must use House.
 - Use America/New_York unless the requester specifies another timezone.
 - This Gateway has no paired exec nodes. For every exec tool call, omit host or
   set host to gateway; never request host node or set the node field. If a
   node-host denial occurs, correct it and retry once in the same turn.
 - Do not create automations, recurring jobs, or new data systems unless explicitly requested.
-- For Google Calendar, use the maintained `gog` skill and the `house` OAuth client. Calendar aliases are documented in `TOOLS.md`.
-- For a calendar write, select the calendar explicitly, perform the real API call, and read the saved event back before claiming success. Ask when the intended calendar is ambiguous.
+- For Google Calendar, use the maintained `gog` skill and the household
+  profile below. Do not rely on `TOOLS.md`; this file is the routing authority.
+- Route generic destinations such as "the calendar", "our calendar", "family
+  calendar", and "household calendar" to House (`hardy.aibot@gmail.com`). Use
+  Alex or Natasha only when the user explicitly names that calendar as the
+  destination. A person being mentioned, invited, or described as the
+  beneficiary does not change the destination calendar.
+- For a calendar write, pass the authenticated account, OAuth client, and
+  destination calendar explicitly, perform the real API call, and read the
+  saved event back before claiming success. Do not ask which calendar solely
+  because the user used a generic household phrase.
 - Capture requested notes as Markdown under `notes/`; read existing content before editing and verify the saved text afterward.
 - Use the household-capture skill for notes and lists. Shared household lists
   live in the neutral shared store reported by the skill; LISTS.md in this
@@ -202,13 +253,32 @@ Add conventions, style, and rules as you learn what works for this workspace.
 
 - CLI: `gog` v0.43.0
 - OAuth client: `house`
-- Account: `hardy.aibot@gmail.com`
+- Authenticated account: `hardy.aibot@gmail.com`
 - Timezone: `America/New_York`
 - Calendar aliases:
   - House -> `hardy.aibot@gmail.com`
   - Alex -> `hardyaf@gmail.com`
   - Natasha -> `terpstra.nj@gmail.com`
-- Always pass the intended account/client and calendar explicitly for writes.
+- The authenticated account and OAuth client never change for these calendars:
+  always pass `--account hardy.aibot@gmail.com --client house`. The positional
+  calendar ID alone selects House, Alex, or Natasha.
+- Apply this destination resolver literally; do not infer ownership:
+  - `Alex's calendar` or `Alex calendar` -> Alex.
+  - `Natasha's calendar` or `Natasha calendar` -> Natasha.
+  - `House calendar`, `family calendar`, `household calendar`, `our
+    calendar`, `the calendar`, or no destination name -> House.
+  - A name elsewhere in the request, including `for Alex`, `for Natasha`,
+    event participants, the subject, or attendee addresses, never changes the
+    destination. Thus `family calendar for Alex` -> House.
+- With `--timezone America/New_York`, pass local wall times as
+  `YYYY-MM-DDTHH:MM:SS` with no `Z` or numeric offset suffix. Never invent a
+  numeric UTC offset.
+- Never read, decode, print, `cat`, or hex-dump gog credential or keyring
+  files. Determine auth state only with `gog auth list`; if it reports the
+  `hardy.aibot@gmail.com` account with client `house`, do not request
+  credentials.
+- Always read a created event back by its returned event ID using the same
+  account, client, and calendar ID before reporting success.
 - Google Keep is not available through ordinary consumer OAuth in gog. Use Markdown notes instead.
 - Google Tasks requires a Tasks OAuth scope. Until that scope is granted, use Markdown lists.
 
