@@ -111,3 +111,45 @@ embedder has a short idle lifetime, but concurrent embedding and GPU OCR are
 resource-constrained until the second RTX 3090 is installed.
 After testing, the embedder was explicitly unloaded and GPU use returned to
 13,416 MiB with only `gpt-oss:20b` resident.
+
+## Household capture and display upgrade
+
+Run later on 2026-10-04:
+
+- Installed the first-party `household-capture` workspace skill for both
+  `main` and `natasha`; OpenClaw reports it eligible and model-visible for
+  both agents.
+- Added a neutral shared household store outside both private workspaces,
+  while retaining separate Jarvis and Natasha personal lists and notes.
+- Verified atomic writes, cross-process locking, stable IDs, duplicate
+  suppression, exact completion, recoverable removal/restore, scoped note
+  search, and exclusion of personal data from the household dashboard.
+- The six-test production suite passed from both deployed workspace copies.
+- A natural-language main-agent turn saved one shared list item, one private
+  task, and one private note in a single verified batch. A second turn
+  completed both list items in one tool call. Independent reads confirmed the
+  saved and completed states.
+- A Natasha-agent turn read the shared list without exposing main-agent
+  personal data.
+- Created a native `session:report` household list widget in the pinned main
+  session named `Household`. It read back at revision 2 with no active
+  acceptance items. This is an on-demand snapshot, not a duplicate data store
+  or an automatic refresh service.
+- The built-in hybrid memory CLI returned note `JN-20261005-0001` as its top
+  result (score 0.687, vector 0.553, text 0.906) using local
+  `qwen3-embedding:8b` at 4096 dimensions.
+- Deterministic captured-note search returned that same ID and the exact body.
+
+The first isolated agent recall attempt selected an older acceptance note
+after invalid tool calls instead of the note named in the request. Storage,
+the memory index, and direct search were healthy. The agent policies and skill
+were therefore hardened to route captured-note recall through scoped,
+deterministic reads and to forbid substituting another note. A fresh
+ordinary-language turn then returned the exact ID and sentence. It still
+recorded two failed internal tool attempts before succeeding, so the remaining
+risk is `gpt-oss:20b` tool selection/orchestration, not permissions, storage,
+embeddings, or GPU execution.
+
+The pre-change live files are recoverable from:
+
+    /home/codex/.openclaw/backups/household-capture-20261005T002553

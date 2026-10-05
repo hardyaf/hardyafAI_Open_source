@@ -23,3 +23,7 @@ and [redacted active settings](config/openclaw.redacted.json5).
 
 The active Jarvis identity and personality are mirrored under
 `config/workspace/` for review and version history.
+
+Natural-language household notes and lists use the first-party
+`household-capture` workspace skill. Its design and operating checks are in
+[`docs/household-capture.md`](docs/household-capture.md).

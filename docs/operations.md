@@ -75,8 +75,10 @@ Persistent household data is ordinary Markdown in isolated workspaces:
 
 - Main/shared: `/home/codex/.openclaw/workspace`
 - Natasha private: `/home/codex/.openclaw/workspace-natasha`
-- Each workspace: `USER.md`, `MEMORY.md`, `memory/`, `notes/`,
-  and `LISTS.md`
+- Each workspace: `USER.md`, `MEMORY.md`, `memory/`, private `notes/`,
+  and private `LISTS.md`
+- Shared household lists/notes:
+  `/home/codex/.openclaw/shared/household/`
 - Derived indexes: `/home/codex/.openclaw/agents/<id>/agent/openclaw-agent.sqlite`
 
 Useful memory checks:
@@ -107,6 +109,11 @@ project `988413896481`. Enable it here if Google-backed task lists are wanted:
 <https://console.cloud.google.com/apis/library/tasks.googleapis.com?project=988413896481>
 
 Markdown list management works without that API.
+
+Natural-language note and list capture uses the first-party
+`household-capture` workspace skill. See
+[`household-capture.md`](household-capture.md) for storage, recovery, dashboard,
+and verification details.
 
 For the intended Alex and Natasha calendars, each owner must share the calendar
 with `hardy.aibot@gmail.com` and grant Make changes to events. No existing

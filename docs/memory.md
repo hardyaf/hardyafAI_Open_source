@@ -19,7 +19,9 @@ does not load a second copy of the 20B chat model.
 - MEMORY.md: curated durable decisions and non-profile facts.
 - memory/YYYY-MM-DD.md: append-only dated observations.
 - notes/: longer reference notes.
-- LISTS.md: canonical local task/list store.
+- Agent LISTS.md: canonical private task/list store.
+- `/home/codex/.openclaw/shared/household/LISTS.md`: canonical shared household
+  shopping/task store, accessed by both agents through household-capture.
 - Built-in SQLite hybrid search: full-text plus 4096-dimensional vectors.
 - Natasha direct/explicit transcripts: indexed by Remember across
   conversations.
@@ -55,6 +57,7 @@ cross-conversation recall.
 
 - Main workspace: /home/codex/.openclaw/workspace
 - Natasha workspace: /home/codex/.openclaw/workspace-natasha
+- Shared household store: /home/codex/.openclaw/shared/household
 - Main database: /home/codex/.openclaw/agents/main/agent/openclaw-agent.sqlite
 - Natasha database:
   /home/codex/.openclaw/agents/natasha/agent/openclaw-agent.sqlite
