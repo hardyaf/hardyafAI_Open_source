@@ -31,3 +31,23 @@ Natural-language household notes and lists use the first-party
 PDF documents use the first-party `local-documents` workspace skill with a
 fast local text path and a pinned, CPU-only Docling/RapidOCR fallback. See
 [`docs/local-documents.md`](docs/local-documents.md).
+
+## Household application
+
+The Alex-only connected alpha is deployed privately on `hardybot`. The custom
+Android client and its narrow household control plane are intentionally
+separate from the OpenClaw power-user interface:
+
+- [`apps/hardy-home-android/`](apps/hardy-home-android/) contains the native
+  Kotlin/Jetpack Compose household client.
+- [`services/household-control/`](services/household-control/) contains the
+  local API that owns device identity, profile-to-agent routing, prompt
+  presets, permissions, and the two-run household queue.
+- [`contracts/household-api/openapi.json`](contracts/household-api/openapi.json)
+  is the authoritative phone-to-service API contract.
+- [`deploy/hardybot/`](deploy/hardybot/) contains the private systemd deployment
+  and first-device enrollment procedure.
+- [`docs/household-app-architecture.md`](docs/household-app-architecture.md)
+  records the system boundary and staged rollout.
+- [`docs/household-app-acceptance.md`](docs/household-app-acceptance.md)
+  defines the evidence required before replacing Discord.

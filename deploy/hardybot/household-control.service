@@ -1,0 +1,23 @@
+[Unit]
+Description=Hardy Home household control service
+After=network-online.target openclaw-gateway.service
+Wants=network-online.target
+
+[Service]
+Type=simple
+WorkingDirectory=%h/hardyafAI_Open_source/services/household-control
+EnvironmentFile=%h/.config/hardy-home/control.env
+Environment=PATH=%h/.openclaw/tools/node/bin:/usr/local/bin:/usr/bin:/bin
+ExecStart=%h/.openclaw/tools/node/bin/node src/server.ts
+Restart=on-failure
+RestartSec=3
+TimeoutStopSec=20
+UMask=0077
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=strict
+ProtectHome=read-only
+ReadWritePaths=%h/.local/share/hardy-home
+
+[Install]
+WantedBy=default.target
