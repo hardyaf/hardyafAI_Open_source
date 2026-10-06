@@ -1,0 +1,20 @@
+{
+  "name": "hardy-home-control",
+  "version": "0.2.0",
+  "private": true,
+  "type": "module",
+  "engines": {
+    "node": ">=24.0.0"
+  },
+  "scripts": {
+    "invite": "node src/cli.ts invite",
+    "probe": "node src/cli.ts probe-openclaw",
+    "smoke:live": "node scripts/live-connected-alpha.ts",
+    "start": "node src/server.ts",
+    "test": "node --test"
+  },
+  "dependencies": {
+    "@openclaw/gateway-client": "2026.9.8",
+    "@openclaw/gateway-protocol": "2026.9.8"
+  }
+}

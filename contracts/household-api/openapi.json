@@ -1,0 +1,152 @@
+{
+  "openapi": "3.1.0",
+  "info": {
+    "title": "Hardy Home Household API",
+    "version": "0.2.0",
+    "description": "The only family-device API. OpenClaw Gateway credentials and protocol are intentionally absent."
+  },
+  "servers": [{ "url": "https://hardybot.example.invalid" }],
+  "security": [{
+    "DeviceId": [],
+    "DeviceTimestamp": [],
+    "DeviceNonce": [],
+    "DeviceSignature": []
+  }],
+  "paths": {
+    "/health": {
+      "get": {
+        "operationId": "getHealth",
+        "security": [],
+        "responses": { "200": { "description": "Service health", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/Health" } } } } }
+      }
+    },
+    "/v1/enrollment/claim": {
+      "post": {
+        "operationId": "claimEnrollment",
+        "security": [],
+        "requestBody": { "required": true, "content": { "application/json": { "schema": { "$ref": "#/components/schemas/EnrollmentClaim" } } } },
+        "responses": {
+          "201": { "description": "Device enrolled", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/EnrollmentResult" } } } },
+          "401": { "$ref": "#/components/responses/Error" }
+        }
+      }
+    },
+    "/v1/me": {
+      "get": {
+        "operationId": "getCurrentProfile",
+        "responses": { "200": { "description": "Authenticated profile", "content": { "application/json": { "schema": { "type": "object", "required": ["profile"], "properties": { "profile": { "$ref": "#/components/schemas/Profile" } } } } } }, "401": { "$ref": "#/components/responses/Error" } }
+      }
+    },
+    "/v1/household/status": {
+      "get": {
+        "operationId": "getHouseholdStatus",
+        "responses": { "200": { "description": "Execution and profile status", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/HouseholdSnapshot" } } } } }
+      }
+    },
+    "/v1/presets": {
+      "get": {
+        "operationId": "listPresets",
+        "responses": { "200": { "description": "Allowed prompt presets", "content": { "application/json": { "schema": { "type": "object", "required": ["presets"], "properties": { "presets": { "type": "array", "items": { "$ref": "#/components/schemas/Preset" } } } } } } } }
+      }
+    },
+    "/v1/conversations": {
+      "get": {
+        "operationId": "listConversations",
+        "responses": { "200": { "description": "Authorized conversations", "content": { "application/json": { "schema": { "type": "object", "required": ["conversations"], "properties": { "conversations": { "type": "array", "items": { "$ref": "#/components/schemas/Conversation" } } } } } } } }
+      },
+      "post": {
+        "operationId": "createConversation",
+        "requestBody": { "required": true, "content": { "application/json": { "schema": { "$ref": "#/components/schemas/CreateConversation" } } } },
+        "responses": { "201": { "description": "Created conversation", "content": { "application/json": { "schema": { "type": "object", "required": ["conversation"], "properties": { "conversation": { "$ref": "#/components/schemas/Conversation" } } } } } } }
+      }
+    },
+    "/v1/conversations/{conversationId}/messages": {
+      "parameters": [{ "$ref": "#/components/parameters/ConversationId" }],
+      "get": {
+        "operationId": "listMessages",
+        "responses": { "200": { "description": "Display-normalized transcript", "content": { "application/json": { "schema": { "type": "object", "required": ["messages"], "properties": { "messages": { "type": "array", "items": { "$ref": "#/components/schemas/ChatMessage" } } } } } } } }
+      },
+      "post": {
+        "operationId": "submitMessage",
+        "requestBody": { "required": true, "content": { "application/json": { "schema": { "$ref": "#/components/schemas/SubmitMessage" } } } },
+        "responses": {
+          "202": { "description": "Durable submission receipt", "content": { "application/json": { "schema": { "type": "object", "required": ["receipt"], "properties": { "receipt": { "$ref": "#/components/schemas/SubmissionReceipt" } } } } } },
+          "409": { "$ref": "#/components/responses/Error" }
+        }
+      }
+    },
+    "/v1/conversations/{conversationId}/cancel": {
+      "parameters": [{ "$ref": "#/components/parameters/ConversationId" }],
+      "post": {
+        "operationId": "cancelConversation",
+        "requestBody": { "required": false, "content": { "application/json": { "schema": { "type": "object", "properties": { "runId": { "type": "string" } } } } } },
+        "responses": { "204": { "description": "Cancellation accepted" } }
+      }
+    },
+    "/v1/events": {
+      "get": {
+        "operationId": "streamEvents",
+        "responses": { "200": { "description": "Authenticated server-sent event stream", "content": { "text/event-stream": { "schema": { "type": "string" } } } } }
+      }
+    },
+    "/v1/admin/diagnostics": {
+      "get": {
+        "operationId": "getDiagnostics",
+        "responses": { "200": { "description": "Sanitized administrator diagnostics", "content": { "application/json": { "schema": { "type": "object", "additionalProperties": true } } } }, "403": { "$ref": "#/components/responses/Error" } }
+      }
+    }
+  },
+  "components": {
+    "securitySchemes": {
+      "DeviceId": { "type": "apiKey", "in": "header", "name": "X-Hardy-Device-Id" },
+      "DeviceTimestamp": { "type": "apiKey", "in": "header", "name": "X-Hardy-Timestamp" },
+      "DeviceNonce": { "type": "apiKey", "in": "header", "name": "X-Hardy-Nonce" },
+      "DeviceSignature": { "type": "apiKey", "in": "header", "name": "X-Hardy-Signature" }
+    },
+    "parameters": {
+      "ConversationId": { "name": "conversationId", "in": "path", "required": true, "schema": { "type": "string" } }
+    },
+    "responses": {
+      "Error": { "description": "Error", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/Error" } } } }
+    },
+    "schemas": {
+      "Error": { "type": "object", "required": ["error"], "properties": { "error": { "type": "string" } }, "additionalProperties": true },
+      "Health": { "type": "object", "required": ["status", "service", "version", "adapter"], "properties": { "status": { "type": "string" }, "service": { "type": "string" }, "version": { "type": "string" }, "adapter": { "enum": ["mock", "openclaw"] }, "adapterStatus": { "type": "object", "additionalProperties": true } } },
+      "Role": { "enum": ["admin", "adult", "child"] },
+      "ProfileStatus": { "enum": ["available", "working", "queued", "paused", "offline"] },
+      "Capability": { "enum": ["chat", "voiceInput", "attachImages", "viewHouseholdStatus", "viewDiagnostics", "manageAccess"] },
+      "Profile": {
+        "type": "object",
+        "required": ["id", "displayName", "initials", "agentId", "role", "color", "status", "statusDetail", "capabilities"],
+        "properties": {
+          "id": { "type": "string" }, "displayName": { "type": "string" }, "initials": { "type": "string" },
+          "agentId": { "type": "string" }, "role": { "$ref": "#/components/schemas/Role" }, "color": { "type": "string" },
+          "status": { "$ref": "#/components/schemas/ProfileStatus" }, "statusDetail": { "type": "string" },
+          "capabilities": { "type": "array", "items": { "$ref": "#/components/schemas/Capability" }, "uniqueItems": true }
+        }
+      },
+      "ProfileSummary": {
+        "type": "object",
+        "required": ["id", "displayName", "initials", "color", "status", "statusDetail"],
+        "properties": { "id": { "type": "string" }, "displayName": { "type": "string" }, "initials": { "type": "string" }, "color": { "type": "string" }, "status": { "$ref": "#/components/schemas/ProfileStatus" }, "statusDetail": { "type": "string" } }
+      },
+      "HouseholdSnapshot": {
+        "type": "object",
+        "required": ["maxActiveRuns", "activeRuns", "queuedRuns", "profiles"],
+        "properties": { "maxActiveRuns": { "type": "integer" }, "activeRuns": { "type": "integer" }, "queuedRuns": { "type": "integer" }, "profiles": { "type": "array", "items": { "$ref": "#/components/schemas/ProfileSummary" } } }
+      },
+      "Preset": { "type": "object", "required": ["id", "label", "description", "allowedRoles"], "properties": { "id": { "type": "string" }, "label": { "type": "string" }, "description": { "type": "string" }, "allowedRoles": { "type": "array", "items": { "$ref": "#/components/schemas/Role" } } } },
+      "Conversation": {
+        "type": "object",
+        "required": ["id", "ownerProfileId", "agentId", "sessionKey", "title", "presetId", "audience", "updatedAt"],
+        "properties": { "id": { "type": "string" }, "ownerProfileId": { "type": "string" }, "agentId": { "type": "string" }, "sessionKey": { "type": "string" }, "title": { "type": "string" }, "presetId": { "type": ["string", "null"] }, "audience": { "enum": ["private", "household"] }, "updatedAt": { "type": "string", "format": "date-time" } }
+      },
+      "ChatMessage": { "type": "object", "required": ["id", "conversationId", "role", "text", "createdAt"], "properties": { "id": { "type": "string" }, "conversationId": { "type": "string" }, "role": { "enum": ["user", "assistant", "system"] }, "text": { "type": "string" }, "createdAt": { "type": "string", "format": "date-time" } } },
+      "EnrollmentClaim": { "type": "object", "required": ["code", "deviceName", "publicKeyDerBase64"], "properties": { "code": { "type": "string", "minLength": 8 }, "deviceName": { "type": "string", "minLength": 1, "maxLength": 80 }, "publicKeyDerBase64": { "type": "string" } } },
+      "EnrollmentResult": { "type": "object", "required": ["deviceId", "profile"], "properties": { "deviceId": { "type": "string" }, "profile": { "$ref": "#/components/schemas/Profile" } } },
+      "CreateConversation": { "type": "object", "required": ["title"], "properties": { "title": { "type": "string", "minLength": 1, "maxLength": 120 }, "presetId": { "type": ["string", "null"] } } },
+      "SubmitMessage": { "type": "object", "required": ["text", "submissionId"], "properties": { "text": { "type": "string", "minLength": 1, "maxLength": 20000 }, "submissionId": { "type": "string", "minLength": 8, "maxLength": 128 } } },
+      "SubmissionReceipt": { "type": "object", "required": ["submissionId", "conversationId", "profileId", "agentId", "status", "queuePosition", "runId"], "properties": { "submissionId": { "type": "string" }, "conversationId": { "type": "string" }, "profileId": { "type": "string" }, "agentId": { "type": "string" }, "status": { "enum": ["dispatching", "running", "queued", "complete", "failed", "cancelled"] }, "queuePosition": { "type": ["integer", "null"] }, "runId": { "type": ["string", "null"] } } }
+    }
+  }
+}
