@@ -233,6 +233,7 @@ export class HouseholdDatabase {
   }
 
   private seed() {
+    // Existing profile rows own display metadata; public defaults apply only on first insert.
     const insertProfile = this.db.prepare(`
       INSERT INTO profiles(id, display_name, initials, agent_id, role, color, status, status_detail, capabilities_json)
       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)

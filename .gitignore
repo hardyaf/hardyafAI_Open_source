@@ -15,3 +15,17 @@ node_modules/
 *.sqlite-shm
 *.sqlite-wal
 deploy/**/control.env
+
+# Private operator inputs stay outside the checkout; these prevent accidental adds.
+/AGENTS.md
+.env
+.env.*
+!.env.example
+!.env.template
+*.env
+*.local.json
+*.local.json5
+*.local.yaml
+*.local.yml
+*.private.json
+*.private.json5

@@ -3,6 +3,12 @@
 As of November 26, 2026. **Pre-production. Household control 0.11.0 and protected Connections remain deployed; household web access is currently unavailable while router reservation/restoration is deferred. One child profile’s Fitbit session control is enabled. Additional browser enrollment and pairing remain pending.**
 Complete household functional acceptance remains open.
 
+## November 26 public-source cleanup prepared (source 0.11.1)
+
+Source **0.11.1** prepares neutral configuration/workspace examples, private-input ignore rules and generic fresh-install display labels. Existing saved display names and initials remain owned by the private application database and are preserved on startup. Stable profile/agent identifiers and policy refresh behavior are unchanged. See [source and private configuration ownership](public-source-hygiene.md).
+
+This is a source/history cleanup, not a deployment. The running household service remains **0.11.0**; protected JSON/env files, Bitwarden, private workspaces, canonical databases and grants are unchanged. Private rollback and rewritten-history verification evidence are retained outside the repository. Writable Git history and GitHub pull-request/cache retention are separate checks; this source change does not assert complete server-side purging or public-release readiness.
+
 ## November 26 read-only system status deployed (0.11.0)
 
 Household control **0.11.0** deploys the optional read-only system snapshot through the existing diagnostics domain. The protected manifest and native registration declare **91 tool names** before contextual grant filtering. Routine private operator requests retain current identity, capability and grant checks without an artificial goal. Hardware/resource, fixed-service and loaded-model observations have explicit partial/unavailable states; collection success does not mean every service is healthy.
