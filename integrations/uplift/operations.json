@@ -1,0 +1,1752 @@
+{
+  "version": 1,
+  "authority": "uplift",
+  "operations": [
+    {
+      "name": "uplift_project_list",
+      "operation": "project.list",
+      "description": "List only currently granted Uplift projects. Catalog membership does not grant access.",
+      "inputSchema": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "includeInactive": {
+            "type": "boolean"
+          }
+        },
+        "required": []
+      },
+      "effect": "read",
+      "internal": false
+    },
+    {
+      "name": "uplift_project_context",
+      "operation": "project.context",
+      "description": "Read maintained context and revision for one granted project.",
+      "inputSchema": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "projectCode": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 64
+          }
+        },
+        "required": [
+          "projectCode"
+        ]
+      },
+      "effect": "read",
+      "internal": false
+    },
+    {
+      "name": "uplift_project_upsert",
+      "operation": "project.upsert",
+      "description": "Explicitly create/update a granted project catalog entry using CAS. Requires project-management grant; never changes grants.",
+      "inputSchema": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "projectCode": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 64
+          },
+          "name": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 250
+          },
+          "context": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 16000
+          },
+          "active": {
+            "type": "boolean"
+          },
+          "expectedRevision": {
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 9000000000000
+          }
+        },
+        "required": [
+          "projectCode",
+          "name",
+          "context",
+          "active",
+          "expectedRevision"
+        ]
+      },
+      "effect": "write",
+      "internal": false
+    },
+    {
+      "name": "uplift_source_intake",
+      "operation": "source.intake",
+      "description": "Save an authorized artifact as an immutable Uplift receipt original. Source bytes are resolved by the trusted artifact adapter; exact source replay deduplicates.",
+      "inputSchema": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "artifactId": {
+            "type": "string",
+            "pattern": "^artifact-[a-f0-9]{64}$"
+          }
+        },
+        "required": [
+          "artifactId"
+        ]
+      },
+      "effect": "write",
+      "internal": false
+    },
+    {
+      "name": "uplift_source_get",
+      "operation": "source.get",
+      "description": "Read receipt source metadata and verify immutable original hash. Returns no filesystem path.",
+      "inputSchema": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "receiptId": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 128
+          }
+        },
+        "required": [
+          "receiptId"
+        ]
+      },
+      "effect": "read",
+      "internal": false
+    },
+    {
+      "name": "uplift_receipt_get",
+      "operation": "receipt.get",
+      "description": "Read receipt revision pointers, open review reasons and recent native attempt events.",
+      "inputSchema": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "receiptId": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 128
+          }
+        },
+        "required": [
+          "receiptId"
+        ]
+      },
+      "effect": "read",
+      "internal": false
+    },
+    {
+      "name": "uplift_receipt_list",
+      "operation": "receipt.list",
+      "description": "List authorized receipts with an explicit cursor; original text and provisional amounts are not report acceptance.",
+      "inputSchema": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "limit": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 200
+          },
+          "afterReceiptId": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 128
+          },
+          "disposition": {
+            "type": "string",
+            "enum": [
+              "received",
+              "provisional",
+              "accepted",
+              "excluded"
+            ]
+          }
+        },
+        "required": []
+      },
+      "effect": "read",
+      "internal": false
+    },
+    {
+      "name": "uplift_evidence_add",
+      "operation": "evidence.add",
+      "description": "Save an agent observation/reasoning note. It cannot label itself OCR, a user statement or a standing rule, and cannot independently ground acceptance.",
+      "inputSchema": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "receiptId": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 128
+          },
+          "text": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 200000
+          },
+          "sourceRef": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 300
+          }
+        },
+        "required": [
+          "receiptId",
+          "text"
+        ]
+      },
+      "effect": "write",
+      "internal": false
+    },
+    {
+      "name": "uplift_evidence_record",
+      "operation": "evidence.record",
+      "description": "INTERNAL trusted adapter only: append OCR/user/rule/project evidence with server-injected provenance. Never expose context.evidenceOrigin to model input.",
+      "inputSchema": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "receiptId": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 128
+          },
+          "text": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 200000
+          }
+        },
+        "required": [
+          "receiptId",
+          "text"
+        ]
+      },
+      "effect": "write",
+      "internal": true
+    },
+    {
+      "name": "uplift_evidence_list",
+      "operation": "evidence.list",
+      "description": "List bounded excerpts and IDs of committed receipt evidence.",
+      "inputSchema": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "receiptId": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 128
+          },
+          "limit": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 200
+          }
+        },
+        "required": [
+          "receiptId"
+        ]
+      },
+      "effect": "read",
+      "internal": false
+    },
+    {
+      "name": "uplift_evidence_read",
+      "operation": "evidence.read",
+      "description": "Read a bounded evidence excerpt and its provenance/facts. Quotes must match committed evidence exactly.",
+      "inputSchema": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "receiptId": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 128
+          },
+          "evidenceId": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 128
+          },
+          "offset": {
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 200000
+          },
+          "length": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 16000
+          }
+        },
+        "required": [
+          "receiptId",
+          "evidenceId"
+        ]
+      },
+      "effect": "read",
+      "internal": false
+    },
+    {
+      "name": "uplift_candidate_save",
+      "operation": "candidate.save",
+      "description": "Append an immutable candidate using expected latest revision; returns current validation. Non-monetary evidence refs may carry normalized interpretations with exact quotes/rationale/ambiguity. Accept a clear valid candidate directly; a separate validate call is optional.",
+      "inputSchema": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "receiptId": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 128
+          },
+          "expectedRevision": {
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 9000000000000
+          },
+          "candidate": {
+            "type": "object",
+            "additionalProperties": false,
+            "properties": {
+              "documentType": {
+                "type": "string",
+                "enum": [
+                  "receipt",
+                  "invoice",
+                  "refund",
+                  "credit"
+                ]
+              },
+              "profile": {
+                "type": "string",
+                "enum": [
+                  "summary",
+                  "itemized"
+                ]
+              },
+              "vendor": {
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 250
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              },
+              "date": {
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "pattern": "^\\d{4}-\\d{2}-\\d{2}$"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              },
+              "currency": {
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 3
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              },
+              "totalMinor": {
+                "anyOf": [
+                  {
+                    "type": "integer",
+                    "minimum": -9000000000000,
+                    "maximum": 9000000000000
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              },
+              "subtotalMinor": {
+                "anyOf": [
+                  {
+                    "type": "integer",
+                    "minimum": -9000000000000,
+                    "maximum": 9000000000000
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              },
+              "transactionRef": {
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 250
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              },
+              "fieldEvidence": {
+                "type": "object",
+                "additionalProperties": false,
+                "properties": {
+                  "vendor": {
+                    "type": "array",
+                    "items": {
+                      "type": "object",
+                      "additionalProperties": false,
+                      "properties": {
+                        "evidenceId": {
+                          "type": "string",
+                          "pattern": "^evidence-[a-f0-9]{48}$"
+                        },
+                        "quote": {
+                          "type": "string",
+                          "minLength": 1,
+                          "maxLength": 500
+                        },
+                        "interpretation": {
+                          "type": "object",
+                          "additionalProperties": false,
+                          "properties": {
+                            "value": {
+                              "type": "string",
+                              "minLength": 1,
+                              "maxLength": 250
+                            },
+                            "rationale": {
+                              "type": "string",
+                              "minLength": 1,
+                              "maxLength": 2000
+                            },
+                            "ambiguity": {
+                              "type": "string",
+                              "enum": [
+                                "clear",
+                                "uncertain"
+                              ]
+                            }
+                          },
+                          "required": [
+                            "value",
+                            "rationale",
+                            "ambiguity"
+                          ],
+                          "description": "Optional source-linked semantic normalization for vendor/date/currency/transactionRef. Exact quote and trusted source are still required. Does not ground monetary values or waive ambiguity."
+                        }
+                      },
+                      "required": [
+                        "evidenceId",
+                        "quote"
+                      ]
+                    },
+                    "maxItems": 20
+                  },
+                  "date": {
+                    "type": "array",
+                    "items": {
+                      "type": "object",
+                      "additionalProperties": false,
+                      "properties": {
+                        "evidenceId": {
+                          "type": "string",
+                          "pattern": "^evidence-[a-f0-9]{48}$"
+                        },
+                        "quote": {
+                          "type": "string",
+                          "minLength": 1,
+                          "maxLength": 500
+                        },
+                        "interpretation": {
+                          "type": "object",
+                          "additionalProperties": false,
+                          "properties": {
+                            "value": {
+                              "type": "string",
+                              "minLength": 1,
+                              "maxLength": 250
+                            },
+                            "rationale": {
+                              "type": "string",
+                              "minLength": 1,
+                              "maxLength": 2000
+                            },
+                            "ambiguity": {
+                              "type": "string",
+                              "enum": [
+                                "clear",
+                                "uncertain"
+                              ]
+                            }
+                          },
+                          "required": [
+                            "value",
+                            "rationale",
+                            "ambiguity"
+                          ],
+                          "description": "Optional source-linked semantic normalization for vendor/date/currency/transactionRef. Exact quote and trusted source are still required. Does not ground monetary values or waive ambiguity."
+                        }
+                      },
+                      "required": [
+                        "evidenceId",
+                        "quote"
+                      ]
+                    },
+                    "maxItems": 20
+                  },
+                  "currency": {
+                    "type": "array",
+                    "items": {
+                      "type": "object",
+                      "additionalProperties": false,
+                      "properties": {
+                        "evidenceId": {
+                          "type": "string",
+                          "pattern": "^evidence-[a-f0-9]{48}$"
+                        },
+                        "quote": {
+                          "type": "string",
+                          "minLength": 1,
+                          "maxLength": 500
+                        },
+                        "interpretation": {
+                          "type": "object",
+                          "additionalProperties": false,
+                          "properties": {
+                            "value": {
+                              "type": "string",
+                              "minLength": 1,
+                              "maxLength": 250
+                            },
+                            "rationale": {
+                              "type": "string",
+                              "minLength": 1,
+                              "maxLength": 2000
+                            },
+                            "ambiguity": {
+                              "type": "string",
+                              "enum": [
+                                "clear",
+                                "uncertain"
+                              ]
+                            }
+                          },
+                          "required": [
+                            "value",
+                            "rationale",
+                            "ambiguity"
+                          ],
+                          "description": "Optional source-linked semantic normalization for vendor/date/currency/transactionRef. Exact quote and trusted source are still required. Does not ground monetary values or waive ambiguity."
+                        }
+                      },
+                      "required": [
+                        "evidenceId",
+                        "quote"
+                      ]
+                    },
+                    "maxItems": 20
+                  },
+                  "totalMinor": {
+                    "type": "array",
+                    "items": {
+                      "type": "object",
+                      "additionalProperties": false,
+                      "properties": {
+                        "evidenceId": {
+                          "type": "string",
+                          "pattern": "^evidence-[a-f0-9]{48}$"
+                        },
+                        "quote": {
+                          "type": "string",
+                          "minLength": 1,
+                          "maxLength": 500
+                        },
+                        "interpretation": {
+                          "type": "object",
+                          "additionalProperties": false,
+                          "properties": {
+                            "value": {
+                              "type": "string",
+                              "minLength": 1,
+                              "maxLength": 250
+                            },
+                            "rationale": {
+                              "type": "string",
+                              "minLength": 1,
+                              "maxLength": 2000
+                            },
+                            "ambiguity": {
+                              "type": "string",
+                              "enum": [
+                                "clear",
+                                "uncertain"
+                              ]
+                            }
+                          },
+                          "required": [
+                            "value",
+                            "rationale",
+                            "ambiguity"
+                          ],
+                          "description": "Optional source-linked semantic normalization for vendor/date/currency/transactionRef. Exact quote and trusted source are still required. Does not ground monetary values or waive ambiguity."
+                        }
+                      },
+                      "required": [
+                        "evidenceId",
+                        "quote"
+                      ]
+                    },
+                    "maxItems": 20
+                  },
+                  "subtotalMinor": {
+                    "type": "array",
+                    "items": {
+                      "type": "object",
+                      "additionalProperties": false,
+                      "properties": {
+                        "evidenceId": {
+                          "type": "string",
+                          "pattern": "^evidence-[a-f0-9]{48}$"
+                        },
+                        "quote": {
+                          "type": "string",
+                          "minLength": 1,
+                          "maxLength": 500
+                        },
+                        "interpretation": {
+                          "type": "object",
+                          "additionalProperties": false,
+                          "properties": {
+                            "value": {
+                              "type": "string",
+                              "minLength": 1,
+                              "maxLength": 250
+                            },
+                            "rationale": {
+                              "type": "string",
+                              "minLength": 1,
+                              "maxLength": 2000
+                            },
+                            "ambiguity": {
+                              "type": "string",
+                              "enum": [
+                                "clear",
+                                "uncertain"
+                              ]
+                            }
+                          },
+                          "required": [
+                            "value",
+                            "rationale",
+                            "ambiguity"
+                          ],
+                          "description": "Optional source-linked semantic normalization for vendor/date/currency/transactionRef. Exact quote and trusted source are still required. Does not ground monetary values or waive ambiguity."
+                        }
+                      },
+                      "required": [
+                        "evidenceId",
+                        "quote"
+                      ]
+                    },
+                    "maxItems": 20
+                  },
+                  "transactionRef": {
+                    "type": "array",
+                    "items": {
+                      "type": "object",
+                      "additionalProperties": false,
+                      "properties": {
+                        "evidenceId": {
+                          "type": "string",
+                          "pattern": "^evidence-[a-f0-9]{48}$"
+                        },
+                        "quote": {
+                          "type": "string",
+                          "minLength": 1,
+                          "maxLength": 500
+                        },
+                        "interpretation": {
+                          "type": "object",
+                          "additionalProperties": false,
+                          "properties": {
+                            "value": {
+                              "type": "string",
+                              "minLength": 1,
+                              "maxLength": 250
+                            },
+                            "rationale": {
+                              "type": "string",
+                              "minLength": 1,
+                              "maxLength": 2000
+                            },
+                            "ambiguity": {
+                              "type": "string",
+                              "enum": [
+                                "clear",
+                                "uncertain"
+                              ]
+                            }
+                          },
+                          "required": [
+                            "value",
+                            "rationale",
+                            "ambiguity"
+                          ],
+                          "description": "Optional source-linked semantic normalization for vendor/date/currency/transactionRef. Exact quote and trusted source are still required. Does not ground monetary values or waive ambiguity."
+                        }
+                      },
+                      "required": [
+                        "evidenceId",
+                        "quote"
+                      ]
+                    },
+                    "maxItems": 20
+                  }
+                },
+                "required": []
+              },
+              "adjustments": {
+                "type": "array",
+                "items": {
+                  "type": "object",
+                  "additionalProperties": false,
+                  "properties": {
+                    "kind": {
+                      "type": "string",
+                      "enum": [
+                        "tax",
+                        "fee",
+                        "tip",
+                        "shipping",
+                        "discount",
+                        "rounding"
+                      ]
+                    },
+                    "amountMinor": {
+                      "type": "integer",
+                      "minimum": -9000000000000,
+                      "maximum": 9000000000000
+                    },
+                    "evidence": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "additionalProperties": false,
+                        "properties": {
+                          "evidenceId": {
+                            "type": "string",
+                            "pattern": "^evidence-[a-f0-9]{48}$"
+                          },
+                          "quote": {
+                            "type": "string",
+                            "minLength": 1,
+                            "maxLength": 500
+                          },
+                          "interpretation": {
+                            "type": "object",
+                            "additionalProperties": false,
+                            "properties": {
+                              "value": {
+                                "type": "string",
+                                "minLength": 1,
+                                "maxLength": 250
+                              },
+                              "rationale": {
+                                "type": "string",
+                                "minLength": 1,
+                                "maxLength": 2000
+                              },
+                              "ambiguity": {
+                                "type": "string",
+                                "enum": [
+                                  "clear",
+                                  "uncertain"
+                                ]
+                              }
+                            },
+                            "required": [
+                              "value",
+                              "rationale",
+                              "ambiguity"
+                            ],
+                            "description": "Optional source-linked semantic normalization for vendor/date/currency/transactionRef. Exact quote and trusted source are still required. Does not ground monetary values or waive ambiguity."
+                          }
+                        },
+                        "required": [
+                          "evidenceId",
+                          "quote"
+                        ]
+                      },
+                      "maxItems": 20
+                    },
+                    "calculation": {
+                      "type": "object",
+                      "additionalProperties": false,
+                      "properties": {
+                        "operator": {
+                          "type": "string",
+                          "enum": [
+                            "sum",
+                            "difference",
+                            "quantity_product"
+                          ]
+                        },
+                        "inputs": {
+                          "type": "array",
+                          "items": {
+                            "type": "object",
+                            "additionalProperties": false,
+                            "properties": {
+                              "minor": {
+                                "type": "integer",
+                                "minimum": -9000000000000,
+                                "maximum": 9000000000000
+                              },
+                              "evidence": {
+                                "type": "array",
+                                "items": {
+                                  "type": "object",
+                                  "additionalProperties": false,
+                                  "properties": {
+                                    "evidenceId": {
+                                      "type": "string",
+                                      "pattern": "^evidence-[a-f0-9]{48}$"
+                                    },
+                                    "quote": {
+                                      "type": "string",
+                                      "minLength": 1,
+                                      "maxLength": 500
+                                    },
+                                    "interpretation": {
+                                      "type": "object",
+                                      "additionalProperties": false,
+                                      "properties": {
+                                        "value": {
+                                          "type": "string",
+                                          "minLength": 1,
+                                          "maxLength": 250
+                                        },
+                                        "rationale": {
+                                          "type": "string",
+                                          "minLength": 1,
+                                          "maxLength": 2000
+                                        },
+                                        "ambiguity": {
+                                          "type": "string",
+                                          "enum": [
+                                            "clear",
+                                            "uncertain"
+                                          ]
+                                        }
+                                      },
+                                      "required": [
+                                        "value",
+                                        "rationale",
+                                        "ambiguity"
+                                      ],
+                                      "description": "Optional source-linked semantic normalization for vendor/date/currency/transactionRef. Exact quote and trusted source are still required. Does not ground monetary values or waive ambiguity."
+                                    }
+                                  },
+                                  "required": [
+                                    "evidenceId",
+                                    "quote"
+                                  ]
+                                },
+                                "maxItems": 20
+                              }
+                            },
+                            "required": [
+                              "minor",
+                              "evidence"
+                            ]
+                          },
+                          "maxItems": 30
+                        },
+                        "quantity": {
+                          "type": "string",
+                          "pattern": "^[0-9]{1,8}(\\.[0-9]{1,6})?$"
+                        }
+                      },
+                      "required": [
+                        "operator",
+                        "inputs"
+                      ]
+                    }
+                  },
+                  "required": [
+                    "kind",
+                    "amountMinor"
+                  ]
+                },
+                "maxItems": 30
+              },
+              "items": {
+                "type": "array",
+                "items": {
+                  "type": "object",
+                  "additionalProperties": false,
+                  "properties": {
+                    "description": {
+                      "type": "string",
+                      "minLength": 1,
+                      "maxLength": 500
+                    },
+                    "amountMinor": {
+                      "anyOf": [
+                        {
+                          "type": "integer",
+                          "minimum": -9000000000000,
+                          "maximum": 9000000000000
+                        },
+                        {
+                          "type": "null"
+                        }
+                      ]
+                    },
+                    "unitMinor": {
+                      "anyOf": [
+                        {
+                          "type": "integer",
+                          "minimum": -9000000000000,
+                          "maximum": 9000000000000
+                        },
+                        {
+                          "type": "null"
+                        }
+                      ]
+                    },
+                    "quantity": {
+                      "anyOf": [
+                        {
+                          "type": "string",
+                          "pattern": "^[0-9]{1,8}(\\.[0-9]{1,6})?$"
+                        },
+                        {
+                          "type": "null"
+                        }
+                      ]
+                    },
+                    "evidence": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "additionalProperties": false,
+                        "properties": {
+                          "evidenceId": {
+                            "type": "string",
+                            "pattern": "^evidence-[a-f0-9]{48}$"
+                          },
+                          "quote": {
+                            "type": "string",
+                            "minLength": 1,
+                            "maxLength": 500
+                          },
+                          "interpretation": {
+                            "type": "object",
+                            "additionalProperties": false,
+                            "properties": {
+                              "value": {
+                                "type": "string",
+                                "minLength": 1,
+                                "maxLength": 250
+                              },
+                              "rationale": {
+                                "type": "string",
+                                "minLength": 1,
+                                "maxLength": 2000
+                              },
+                              "ambiguity": {
+                                "type": "string",
+                                "enum": [
+                                  "clear",
+                                  "uncertain"
+                                ]
+                              }
+                            },
+                            "required": [
+                              "value",
+                              "rationale",
+                              "ambiguity"
+                            ],
+                            "description": "Optional source-linked semantic normalization for vendor/date/currency/transactionRef. Exact quote and trusted source are still required. Does not ground monetary values or waive ambiguity."
+                          }
+                        },
+                        "required": [
+                          "evidenceId",
+                          "quote"
+                        ]
+                      },
+                      "maxItems": 20
+                    },
+                    "calculation": {
+                      "type": "object",
+                      "additionalProperties": false,
+                      "properties": {
+                        "operator": {
+                          "type": "string",
+                          "enum": [
+                            "sum",
+                            "difference",
+                            "quantity_product"
+                          ]
+                        },
+                        "inputs": {
+                          "type": "array",
+                          "items": {
+                            "type": "object",
+                            "additionalProperties": false,
+                            "properties": {
+                              "minor": {
+                                "type": "integer",
+                                "minimum": -9000000000000,
+                                "maximum": 9000000000000
+                              },
+                              "evidence": {
+                                "type": "array",
+                                "items": {
+                                  "type": "object",
+                                  "additionalProperties": false,
+                                  "properties": {
+                                    "evidenceId": {
+                                      "type": "string",
+                                      "pattern": "^evidence-[a-f0-9]{48}$"
+                                    },
+                                    "quote": {
+                                      "type": "string",
+                                      "minLength": 1,
+                                      "maxLength": 500
+                                    },
+                                    "interpretation": {
+                                      "type": "object",
+                                      "additionalProperties": false,
+                                      "properties": {
+                                        "value": {
+                                          "type": "string",
+                                          "minLength": 1,
+                                          "maxLength": 250
+                                        },
+                                        "rationale": {
+                                          "type": "string",
+                                          "minLength": 1,
+                                          "maxLength": 2000
+                                        },
+                                        "ambiguity": {
+                                          "type": "string",
+                                          "enum": [
+                                            "clear",
+                                            "uncertain"
+                                          ]
+                                        }
+                                      },
+                                      "required": [
+                                        "value",
+                                        "rationale",
+                                        "ambiguity"
+                                      ],
+                                      "description": "Optional source-linked semantic normalization for vendor/date/currency/transactionRef. Exact quote and trusted source are still required. Does not ground monetary values or waive ambiguity."
+                                    }
+                                  },
+                                  "required": [
+                                    "evidenceId",
+                                    "quote"
+                                  ]
+                                },
+                                "maxItems": 20
+                              }
+                            },
+                            "required": [
+                              "minor",
+                              "evidence"
+                            ]
+                          },
+                          "maxItems": 30
+                        },
+                        "quantity": {
+                          "type": "string",
+                          "pattern": "^[0-9]{1,8}(\\.[0-9]{1,6})?$"
+                        }
+                      },
+                      "required": [
+                        "operator",
+                        "inputs"
+                      ]
+                    },
+                    "synthetic": {
+                      "type": "boolean"
+                    }
+                  },
+                  "required": [
+                    "description"
+                  ]
+                },
+                "maxItems": 500
+              },
+              "allocations": {
+                "type": "array",
+                "items": {
+                  "type": "object",
+                  "additionalProperties": false,
+                  "properties": {
+                    "projectCode": {
+                      "type": "string",
+                      "minLength": 1,
+                      "maxLength": 64
+                    },
+                    "amountMinor": {
+                      "type": "integer",
+                      "minimum": -9000000000000,
+                      "maximum": 9000000000000
+                    },
+                    "rationale": {
+                      "type": "string",
+                      "minLength": 1,
+                      "maxLength": 2000
+                    },
+                    "evidence": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "additionalProperties": false,
+                        "properties": {
+                          "evidenceId": {
+                            "type": "string",
+                            "pattern": "^evidence-[a-f0-9]{48}$"
+                          },
+                          "quote": {
+                            "type": "string",
+                            "minLength": 1,
+                            "maxLength": 500
+                          },
+                          "interpretation": {
+                            "type": "object",
+                            "additionalProperties": false,
+                            "properties": {
+                              "value": {
+                                "type": "string",
+                                "minLength": 1,
+                                "maxLength": 250
+                              },
+                              "rationale": {
+                                "type": "string",
+                                "minLength": 1,
+                                "maxLength": 2000
+                              },
+                              "ambiguity": {
+                                "type": "string",
+                                "enum": [
+                                  "clear",
+                                  "uncertain"
+                                ]
+                              }
+                            },
+                            "required": [
+                              "value",
+                              "rationale",
+                              "ambiguity"
+                            ],
+                            "description": "Optional source-linked semantic normalization for vendor/date/currency/transactionRef. Exact quote and trusted source are still required. Does not ground monetary values or waive ambiguity."
+                          }
+                        },
+                        "required": [
+                          "evidenceId",
+                          "quote"
+                        ]
+                      },
+                      "maxItems": 20
+                    }
+                  },
+                  "required": [
+                    "projectCode",
+                    "amountMinor",
+                    "rationale",
+                    "evidence"
+                  ]
+                },
+                "maxItems": 50
+              },
+              "unresolved": {
+                "type": "array",
+                "items": {
+                  "type": "string",
+                  "minLength": 1,
+                  "maxLength": 160
+                },
+                "maxItems": 50
+              },
+              "duplicateResolution": {
+                "type": "object",
+                "additionalProperties": false,
+                "properties": {
+                  "decision": {
+                    "type": "string",
+                    "enum": [
+                      "unknown",
+                      "distinct"
+                    ]
+                  },
+                  "rationale": {
+                    "type": "string",
+                    "minLength": 0,
+                    "maxLength": 2000
+                  },
+                  "evidence": {
+                    "type": "array",
+                    "items": {
+                      "type": "object",
+                      "additionalProperties": false,
+                      "properties": {
+                        "evidenceId": {
+                          "type": "string",
+                          "pattern": "^evidence-[a-f0-9]{48}$"
+                        },
+                        "quote": {
+                          "type": "string",
+                          "minLength": 1,
+                          "maxLength": 500
+                        },
+                        "interpretation": {
+                          "type": "object",
+                          "additionalProperties": false,
+                          "properties": {
+                            "value": {
+                              "type": "string",
+                              "minLength": 1,
+                              "maxLength": 250
+                            },
+                            "rationale": {
+                              "type": "string",
+                              "minLength": 1,
+                              "maxLength": 2000
+                            },
+                            "ambiguity": {
+                              "type": "string",
+                              "enum": [
+                                "clear",
+                                "uncertain"
+                              ]
+                            }
+                          },
+                          "required": [
+                            "value",
+                            "rationale",
+                            "ambiguity"
+                          ],
+                          "description": "Optional source-linked semantic normalization for vendor/date/currency/transactionRef. Exact quote and trusted source are still required. Does not ground monetary values or waive ambiguity."
+                        }
+                      },
+                      "required": [
+                        "evidenceId",
+                        "quote"
+                      ]
+                    },
+                    "maxItems": 20
+                  }
+                },
+                "required": [
+                  "decision"
+                ]
+              }
+            },
+            "required": [
+              "documentType",
+              "profile"
+            ]
+          }
+        },
+        "required": [
+          "receiptId",
+          "expectedRevision",
+          "candidate"
+        ]
+      },
+      "effect": "write",
+      "internal": false
+    },
+    {
+      "name": "uplift_candidate_get",
+      "operation": "candidate.get",
+      "description": "Read a specific candidate revision or the latest, preserving earlier revisions.",
+      "inputSchema": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "receiptId": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 128
+          },
+          "revision": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 9000000000000
+          }
+        },
+        "required": [
+          "receiptId"
+        ]
+      },
+      "effect": "read",
+      "internal": false
+    },
+    {
+      "name": "uplift_candidate_validate",
+      "operation": "candidate.validate",
+      "description": "Recompute deterministic source/evidence/project/duplicate/monetary gates under current grants and context.",
+      "inputSchema": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "receiptId": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 128
+          },
+          "revision": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 9000000000000
+          }
+        },
+        "required": [
+          "receiptId",
+          "revision"
+        ]
+      },
+      "effect": "read",
+      "internal": false
+    },
+    {
+      "name": "uplift_candidate_accept",
+      "operation": "candidate.accept",
+      "description": "Atomically accept the exact latest revision only after current deterministic gates; read back its financial projection. Invalid candidates remain provisional. Explicit business exceptions need a trusted user approval record and stay visibly unverified.",
+      "inputSchema": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "receiptId": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 128
+          },
+          "revision": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 9000000000000
+          },
+          "exception": {
+            "type": "object",
+            "additionalProperties": false,
+            "properties": {
+              "waiveReasons": {
+                "type": "array",
+                "items": {
+                  "type": "string",
+                  "minLength": 1,
+                  "maxLength": 160
+                },
+                "maxItems": 10
+              },
+              "reason": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 2000
+              },
+              "evidenceId": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 128
+              }
+            },
+            "required": [
+              "waiveReasons",
+              "reason",
+              "evidenceId"
+            ]
+          }
+        },
+        "required": [
+          "receiptId",
+          "revision"
+        ]
+      },
+      "effect": "write",
+      "internal": false
+    },
+    {
+      "name": "uplift_duplicate_find",
+      "operation": "duplicate.find",
+      "description": "Find potential alternate-scan duplicates by grounded vendor/date/currency/total. Similarity never merges or posts another expense automatically.",
+      "inputSchema": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "receiptId": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 128
+          },
+          "revision": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 9000000000000
+          }
+        },
+        "required": [
+          "receiptId",
+          "revision"
+        ]
+      },
+      "effect": "read",
+      "internal": false
+    },
+    {
+      "name": "uplift_receipt_exclude",
+      "operation": "receipt.exclude",
+      "description": "Explicitly exclude a receipt or confirmed duplicate with a reason; retains originals/history and removes only its current reporting projection.",
+      "inputSchema": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "receiptId": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 128
+          },
+          "expectedRevision": {
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 9000000000000
+          },
+          "reason": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 2000
+          },
+          "duplicateOf": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 128
+          }
+        },
+        "required": [
+          "receiptId",
+          "expectedRevision",
+          "reason"
+        ]
+      },
+      "effect": "write",
+      "internal": false
+    },
+    {
+      "name": "uplift_receipt_dispute",
+      "operation": "receipt.dispute",
+      "description": "Open a source-supported dispute against an accepted revision; preserve it but withhold it from final reports until resolved by a new accepted revision.",
+      "inputSchema": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "receiptId": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 128
+          },
+          "acceptedRevision": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 9000000000000
+          },
+          "reason": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 2000
+          },
+          "evidence": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "additionalProperties": false,
+              "properties": {
+                "evidenceId": {
+                  "type": "string",
+                  "pattern": "^evidence-[a-f0-9]{48}$"
+                },
+                "quote": {
+                  "type": "string",
+                  "minLength": 1,
+                  "maxLength": 500
+                },
+                "interpretation": {
+                  "type": "object",
+                  "additionalProperties": false,
+                  "properties": {
+                    "value": {
+                      "type": "string",
+                      "minLength": 1,
+                      "maxLength": 250
+                    },
+                    "rationale": {
+                      "type": "string",
+                      "minLength": 1,
+                      "maxLength": 2000
+                    },
+                    "ambiguity": {
+                      "type": "string",
+                      "enum": [
+                        "clear",
+                        "uncertain"
+                      ]
+                    }
+                  },
+                  "required": [
+                    "value",
+                    "rationale",
+                    "ambiguity"
+                  ],
+                  "description": "Optional source-linked semantic normalization for vendor/date/currency/transactionRef. Exact quote and trusted source are still required. Does not ground monetary values or waive ambiguity."
+                }
+              },
+              "required": [
+                "evidenceId",
+                "quote"
+              ]
+            },
+            "maxItems": 20
+          }
+        },
+        "required": [
+          "receiptId",
+          "acceptedRevision",
+          "reason",
+          "evidence"
+        ]
+      },
+      "effect": "write",
+      "internal": false
+    },
+    {
+      "name": "uplift_attempt_record",
+      "operation": "attempt.record",
+      "description": "Record a native task phase processing/processed/failure event. This is not financial acceptance or another job engine; failed optional redo leaves accepted state intact.",
+      "inputSchema": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "receiptId": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 128
+          },
+          "nativeTaskRef": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 200
+          },
+          "phaseRef": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 200
+          },
+          "state": {
+            "type": "string",
+            "enum": [
+              "processing",
+              "processed",
+              "failed"
+            ]
+          },
+          "errorCode": {
+            "type": "string",
+            "pattern": "^[a-z][a-z0-9_]{1,79}$"
+          },
+          "candidateRevision": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 9000000000000
+          }
+        },
+        "required": [
+          "receiptId",
+          "nativeTaskRef",
+          "phaseRef",
+          "state"
+        ]
+      },
+      "effect": "write",
+      "internal": false
+    },
+    {
+      "name": "uplift_review_list",
+      "operation": "review.list",
+      "description": "Query durable open Uplift exception views; this is not a second background queue.",
+      "inputSchema": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "receiptId": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 128
+          },
+          "limit": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 200
+          }
+        },
+        "required": []
+      },
+      "effect": "read",
+      "internal": false
+    },
+    {
+      "name": "uplift_review_get",
+      "operation": "review.get",
+      "description": "Read a review revision, reasons, source reference and freeform responses.",
+      "inputSchema": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "reviewId": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 128
+          }
+        },
+        "required": [
+          "reviewId"
+        ]
+      },
+      "effect": "read",
+      "internal": false
+    },
+    {
+      "name": "uplift_review_respond",
+      "operation": "review.respond",
+      "description": "Append an ordinary prompt to the exact open review revision. A response alone never accepts, closes or silently rewrites the receipt.",
+      "inputSchema": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "reviewId": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 128
+          },
+          "revision": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 9000000000000
+          },
+          "text": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 16000
+          }
+        },
+        "required": [
+          "reviewId",
+          "revision",
+          "text"
+        ]
+      },
+      "effect": "write",
+      "internal": false
+    },
+    {
+      "name": "uplift_report_generate",
+      "operation": "report.generate",
+      "description": "Build a private canonical JSON/CSV/PDF/XLSX expense report. Final rows include only current accepted revisions; draft provisional rows remain separate, unsupported itemization and disputes are withheld, and currencies never combine.",
+      "inputSchema": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "projectCode": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 64
+          },
+          "mode": {
+            "type": "string",
+            "enum": [
+              "final",
+              "draft"
+            ]
+          },
+          "profile": {
+            "type": "string",
+            "enum": [
+              "summary",
+              "itemized"
+            ]
+          },
+          "format": {
+            "type": "string",
+            "enum": [
+              "json",
+              "csv",
+              "pdf",
+              "xlsx"
+            ]
+          },
+          "startDate": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 10
+          },
+          "endDate": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 10
+          }
+        },
+        "required": []
+      },
+      "effect": "read",
+      "internal": false
+    },
+    {
+      "name": "uplift_operation_get",
+      "operation": "operation.get",
+      "description": "Read the actor-owned committed financial operation receipt before retrying an uncertain mutation; current grants are rechecked.",
+      "inputSchema": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "operationId": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 128
+          }
+        },
+        "required": [
+          "operationId"
+        ]
+      },
+      "effect": "read",
+      "internal": false
+    }
+  ]
+}

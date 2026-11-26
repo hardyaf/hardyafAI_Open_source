@@ -1,0 +1,29 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="referrer" content="no-referrer">
+  <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self'; style-src 'self'; connect-src 'self'; img-src 'self' blob: data:; frame-src blob: 'self'; object-src 'none'; base-uri 'none'; form-action 'self'">
+  <title>Hardy Home · Kitchen</title>
+  <link rel="stylesheet" href="/display/styles.css">
+  <script type="module" src="/display/app.mjs"></script>
+</head>
+<body>
+  <header><div><p class="eyebrow">HARDY HOME</p><h1>Our household</h1></div><div class="connection"><p id="connection" role="status" aria-live="polite">Loading…</p><p id="updated" class="muted"></p><button id="disconnect" class="subtle" hidden>Disconnect screen</button></div></header>
+  <main>
+    <section id="enrollment" class="enrollment card" aria-labelledby="enrollment-title">
+      <p class="eyebrow">KITCHEN DISPLAY</p><h2 id="enrollment-title">A shared place for your day</h2>
+      <p>Connect with a kitchen-display invitation from your household administrator. This screen shows shared lists, household events, and outputs explicitly published for everyone.</p>
+      <form id="enrollment-form"><label>Screen name<input id="device-name" maxlength="80" autocomplete="off" value="Kitchen screen" required></label><label>One-time invitation<input id="code" maxlength="200" autocomplete="off" autocapitalize="characters" spellcheck="false" required></label><button id="enroll-button" type="submit">Connect screen</button></form>
+      <p id="enrollment-notice" role="status" aria-live="polite"></p>
+    </section>
+    <div id="household" hidden>
+      <div id="notices" aria-live="polite"></div>
+      <div class="household-grid"><section aria-labelledby="lists-title"><h2 id="lists-title" class="section-title">Our lists</h2><div id="lists" class="lists"></div></section><section class="calendar card" aria-labelledby="calendar-title"><h2 id="calendar-title">Coming up</h2><div id="events"></div></section></div>
+      <section id="publication" class="card publication" hidden><p class="eyebrow">SHARED WITH THE HOUSEHOLD</p><h2 id="publication-title"></h2><div id="publication-body"></div></section>
+      <footer>Household view · private conversations and personal records stay on your own devices.</footer>
+    </div>
+  </main>
+</body>
+</html>

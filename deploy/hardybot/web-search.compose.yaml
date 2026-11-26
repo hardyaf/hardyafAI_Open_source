@@ -1,0 +1,21 @@
+name: hardy-home-web-search
+
+services:
+  searxng:
+    image: docker.io/searxng/searxng:2026.11.5-3e95f6cd2@sha256:8b4f3ff889bd13b786cc787ea5e044746f7850d8c35af5aa171c67e7108042df
+    user: "977:977"
+    restart: unless-stopped
+    ports:
+      - "127.0.0.1:${HARDY_HOME_SEARCH_PORT:-8888}:8080"
+    environment:
+      SEARXNG_SECRET: ${SEARXNG_SECRET:?Set SEARXNG_SECRET in the protected environment file}
+      FORCE_OWNERSHIP: "false"
+      GRANIAN_ACCESS_LOG: "false"
+    volumes:
+      - ./web-search.settings.yml:/etc/searxng/settings.yml:ro
+      - cache:/var/cache/searxng
+    security_opt:
+      - no-new-privileges:true
+
+volumes:
+  cache:

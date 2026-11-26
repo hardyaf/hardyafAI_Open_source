@@ -1,13 +1,22 @@
 # Household capture and list display
 
+> Deployment host/account identifiers are redacted. Example addresses use
+> `example.invalid`; paths use `$HOME`. Set actual connection, account and
+> storage values from protected operator configuration.
+
+**November 3 design update:** preserve this store as the canonical list/note
+owner. The planned brain-dump workflow composes it with Calendar, native scheduling
+and wiki curation; it does not add a second list database. See the
+[brain-dump design](household-assistant-design.md#brain-dumps-and-delayed-work).
+
 The deployment uses the first-party household-capture workspace skill for
 natural-language notes and lists. It is a supported OpenClaw workspace
 extension; the upstream OpenClaw application remains unmodified.
 
 ## Storage boundary
 
-- Shared household lists: /home/operator/.openclaw/shared/household/LISTS.md
-- Shared household notes: /home/operator/.openclaw/shared/household/notes/
+- Shared household lists: $HOME/.openclaw/shared/household/LISTS.md
+- Shared household notes: $HOME/.openclaw/shared/household/notes/
 - Jarvis personal lists and notes: the main workspace's LISTS.md and notes/
 - Adult personal lists and notes: the Adult workspace's LISTS.md and notes/
 
@@ -74,3 +83,19 @@ From either agent workspace:
 Run the source tests from the repository or either deployed skill directory:
 
     python3 -m unittest discover -s skills/household-capture/tests -v
+
+## Planned app and kitchen projections
+
+The current widget is an on-demand snapshot. The planned app/kitchen views read
+the same canonical IDs and show freshness/offline state. Kitchen output is
+household-scoped and read-only by default; personal lists/notes are not included
+merely because an agent can read them.
+
+Clear brain-dump list actions execute within the current grant. Bind only
+uncertain items to clarification rather than asking the user to approve the
+entire breakdown. Ordinary language answers continue the affected task.
+
+V1 mixed brain dumps enter through a dedicated shared household Discord channel.
+The channel supplies entry mode/audience, while the author retains their own
+grants. A clarification response continues the pending task rather than being
+classified automatically as another independent dump.

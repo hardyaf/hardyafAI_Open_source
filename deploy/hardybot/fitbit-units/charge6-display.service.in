@@ -1,0 +1,8 @@
+[Unit]
+Description=Private Fitbit Android display
+[Service]
+Type=exec
+Environment=LD_LIBRARY_PATH=@PILOT_ROOT@/software/sysroot/usr/lib/x86_64-linux-gnu:@PILOT_ROOT@/software/sysroot/usr/lib/x86_64-linux-gnu/pulseaudio
+ExecStart=@PILOT_ROOT@/software/sysroot/usr/bin/Xvfb :91 -screen 0 1440x2160x24 -nolisten tcp -auth @PILOT_ROOT@/run/Xauthority
+Restart=no
+LimitCORE=0

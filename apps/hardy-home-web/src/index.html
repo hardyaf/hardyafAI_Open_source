@@ -1,0 +1,134 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, interactive-widget=resizes-content">
+  <meta name="color-scheme" content="light">
+  <title>Hardy Home</title>
+  <link rel="stylesheet" href="/home/styles.css">
+  <link rel="stylesheet" href="/home/connections.css">
+  <script type="module" src="/home/app.mjs"></script>
+</head>
+<body>
+  <header class="masthead">
+    <div class="brand"><button id="sidebar-toggle" type="button" aria-controls="conversation-sidebar" aria-expanded="false" hidden>Chats</button><span class="mark" aria-hidden="true">H</span><span>Hardy Home</span></div>
+    <div class="account"><span id="profile"></span><button id="connections-open" type="button" class="quiet" hidden>Connections</button><button id="disconnect" type="button" class="quiet" hidden>Disconnect</button></div>
+  </header>
+
+  <main>
+    <section id="enroll" class="welcome" aria-labelledby="welcome-title">
+      <span class="eyebrow">Household access</span>
+      <h1 id="welcome-title">Connect this browser</h1>
+      <p>Use a one-time invitation for your household profile to open your conversations with Jarvis.</p>
+      <form id="enroll-form">
+        <label for="code">Invitation code</label>
+        <input id="code" required maxlength="24" autocomplete="off" autocapitalize="characters" spellcheck="false">
+        <button type="submit" id="connect" class="primary" disabled>Connect</button>
+      </form>
+      <p id="enroll-status" class="notice" role="status"></p>
+    </section>
+
+    <section id="workspace" class="workspace" aria-label="Household chat" hidden>
+      <button id="sidebar-backdrop" type="button" tabindex="-1" aria-label="Close conversations" hidden></button>
+      <aside id="conversation-sidebar" class="rail" aria-labelledby="rail-title">
+        <div class="rail-header">
+          <div><span class="eyebrow">Workspace</span><h2 id="rail-title">Conversations</h2></div>
+          <button id="sidebar-close" type="button" aria-label="Close conversations" hidden>Close</button>
+          <button id="new" class="primary" type="button">New chat</button>
+        </div>
+        <section id="fitbit-card" class="fitbit-card" aria-labelledby="fitbit-title" hidden>
+          <h2 id="fitbit-title">My Fitbit</h2>
+          <p id="fitbit-proximity" class="hint"></p>
+          <button id="fitbit-sync" class="primary" type="button">Sync my Fitbit</button>
+          <button id="fitbit-stop" type="button" hidden>Stop session</button>
+          <p id="fitbit-status" class="hint" role="status" aria-live="polite"></p>
+        </section>
+        <div id="folder-controls"></div>
+        <p id="sidebar-status" class="hint" role="status"></p>
+        <label class="search-label" for="filter">Find a conversation</label>
+        <input id="filter" type="search" placeholder="Search names and tags" autocomplete="off">
+        <nav id="conversations" aria-label="Conversations"></nav>
+        <nav id="library-tabs" class="inline-actions" aria-label="Household tools"></nav>
+        <details id="people" hidden><summary>Household status</summary><div id="people-status"></div></details>
+      </aside>
+      <section id="chat-area" class="chat" aria-labelledby="chat-title">
+        <div class="chat-header">
+          <div><span class="eyebrow" id="audience">Hardy Home</span><h1 id="chat-title" tabindex="-1">Chat with Jarvis</h1><div id="tags" class="tags"></div></div>
+          <div class="chat-actions"><button id="edit" type="button" hidden>Edit name and tags</button><button id="refresh" type="button">Refresh</button></div>
+        </div>
+        <div class="chat-tools">
+          <div id="mode-field" hidden>
+            <label for="mode">Conversation mode</label>
+            <select id="mode"></select>
+            <p id="mode-note" class="hint"></p>
+          </div>
+          <div id="task-panel" class="task-panel" hidden></div>
+        </div>
+        <div id="transcript" class="transcript" aria-label="Messages" tabindex="0"></div>
+        <div class="composer">
+          <div class="composer-status"><p id="status" role="status"></p><div class="inline-actions"><button id="retry" type="button" hidden>Retry same send</button><button id="dismiss-delivery" type="button" hidden>Dismiss</button></div></div>
+          <form id="send-form" hidden>
+            <div class="inline-actions">
+              <button id="attach" type="button" hidden>Attach file</button>
+              <button id="camera" type="button" hidden>Take photo</button>
+              <button id="dictate" type="button" hidden>Dictate</button>
+            </div>
+            <input id="file-input" type="file" multiple accept="image/png,image/jpeg,image/webp,application/pdf" hidden>
+            <div id="attachment-list" class="inline-actions"></div>
+            <label for="draft">Message Jarvis</label>
+            <div class="send-row">
+              <textarea id="draft" rows="2" maxlength="20000" placeholder="Ask Jarvis…"></textarea>
+              <button type="submit" id="send" class="primary" disabled>Send</button>
+            </div>
+          </form>
+        </div>
+      </section>
+      <section id="library" class="library" aria-labelledby="library-title" hidden>
+        <div class="library-header">
+          <h1 id="library-title" tabindex="-1">Household tools</h1>
+          <div class="inline-actions"><button type="button" id="library-back">Back to chat</button><button type="button" id="library-refresh">Refresh</button></div>
+        </div>
+        <div class="library-filter">
+          <div id="library-query-field"><label for="library-query">Search</label><input id="library-query" type="search" maxlength="240" autocomplete="off"></div>
+          <div id="library-scope-field"><label for="library-scope">Scope</label><select id="library-scope"><option value="household">Household</option><option value="personal">Personal</option></select></div>
+        </div>
+        <p id="library-status" class="notice" role="status"></p>
+        <div id="library-results"></div>
+      </section>
+    </section>
+  </main>
+
+  <dialog id="camera-dialog" aria-labelledby="camera-title">
+    <h2 id="camera-title">Take a photo</h2>
+    <video id="camera-feed" muted playsinline></video>
+    <p id="camera-status" class="notice" role="status"></p>
+    <div class="dialog-actions"><button id="camera-close" type="button">Cancel</button><button id="capture" class="primary" type="button" disabled>Capture</button></div>
+  </dialog>
+
+  <dialog id="media-preview" class="media-preview" aria-labelledby="preview-title">
+    <h2 id="preview-title"></h2>
+    <div id="preview-content"></div>
+    <div class="dialog-actions"><button id="preview-close" type="button">Close</button></div>
+  </dialog>
+
+  <dialog id="conversation-dialog" aria-labelledby="dialog-title">
+    <form id="conversation-form">
+      <h2 id="dialog-title"></h2>
+      <label for="name">Conversation name</label>
+      <input id="name" required maxlength="120" autocomplete="off">
+      <div id="tag-field">
+        <label for="tag-input">Tags</label>
+        <input id="tag-input" autocomplete="off" aria-describedby="tag-hint">
+        <p id="tag-hint" class="hint">Separate up to 8 tags with commas.</p>
+      </div>
+      <div id="audience-field">
+        <label for="visibility">Who can see it</label>
+        <select id="visibility"><option value="private">Only me</option><option value="household">Household</option></select>
+      </div>
+      <div id="preset-field"><label for="preset">Prompt flavor</label><select id="preset"><option value="">Default</option></select></div>
+      <p id="dialog-status" class="notice" role="status"></p>
+      <div class="dialog-actions"><button id="close-dialog" type="button">Cancel</button><button id="save" class="primary" type="submit">Save</button></div>
+    </form>
+  </dialog>
+</body>
+</html>

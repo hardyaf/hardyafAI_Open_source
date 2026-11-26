@@ -138,6 +138,13 @@ class MockHouseholdRepository : HouseholdRepository {
         }
     }
 
+    override suspend fun updateConversationMetadata(id: String, title: String, tags: List<String>): String? {
+        _state.value = _state.value.copy(conversations = _state.value.conversations.map {
+            if (it.id == id && it.canWrite) it.copy(title = title, tags = tags) else it
+        })
+        return null
+    }
+
     override fun createConversation() {
         val id = UUID.randomUUID().toString()
         val conversation = ConversationSummary(id, "New conversation", "Just now · General", false)

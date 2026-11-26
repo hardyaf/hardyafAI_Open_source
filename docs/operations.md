@@ -1,19 +1,30 @@
 # Operations
 
+> Deployment host/account identifiers are redacted. Example addresses use
+> `example.invalid`; paths use `$HOME`. Set actual connection, account and
+> storage values from protected operator configuration.
+
+**Current release, model and acceptance:** see [current status](current-status.md).
+Use its running-configuration and verified-evidence sections rather than older
+dated recovery check totals. Failed isolated data is retained; ordinary services
+must have no fixture override. Scheduling stays disabled. Source/config/provider
+rollback preserves current durable data and never replays external effects.
+The older procedures and dated evidence below remain references.
+
 ## Remote login
 
 From PowerShell on the management PC:
 
 ```powershell
-ssh -i $env:USERPROFILE\.ssh\jarvis_codex operator@example.invalid
+ssh -F none -4 -o IPQoS=none -o IdentitiesOnly=yes -o StrictHostKeyChecking=yes -i "$env:HARDY_HOME_SSH_IDENTITY" "$env:HARDY_HOME_SSH_TARGET"
 ```
 
-The `codex` account is intentionally unprivileged. Enter the server user's
+The deployment account is intentionally unprivileged. Enter the server user's
 sudo password only at an interactive prompt; never copy it into configuration.
 
 ## Services
 
-OpenClaw is installed under `/home/operator/.openclaw` with private Node
+OpenClaw is installed under `$HOME/.openclaw` with private Node
 `24.21.0`. The official systemd user unit is
 `openclaw-gateway.service`.
 
@@ -21,11 +32,11 @@ OpenClaw is installed under `/home/operator/.openclaw` with private Node
 systemctl --user status openclaw-gateway.service
 systemctl --user restart openclaw-gateway.service
 journalctl --user -u openclaw-gateway.service -n 200 --no-pager
-/home/operator/.openclaw/bin/openclaw health --json
-/home/operator/.openclaw/bin/openclaw channels status --json
+$HOME/.openclaw/bin/openclaw health --json
+$HOME/.openclaw/bin/openclaw channels status --json
 ```
 
-Boot persistence is enabled: `loginctl show-user codex -p Linger` should
+Boot persistence is enabled: `loginctl show-user "$USER" -p Linger` should
 report `yes`.
 
 Ollama is independent of Jarvis, restarts through Docker, and binds only to
@@ -41,13 +52,13 @@ nvidia-smi
 
 ## Management access
 
-The Control UI is `http://192.0.2.10:18789/`. It uses a randomly
-generated gateway token stored only in `/home/operator/.openclaw/.env` (mode
+The Control UI is `<private-control-ui-url>`. It uses a randomly
+generated gateway token stored only in `$HOME/.openclaw/.env` (mode
 `0600`). The LAN and localhost browser origins and auth rate limiting are
 explicit in `openclaw.json`.
 
 Discord uses the existing bot through an environment SecretRef. The shared
-channel admits both approved users, the private-notes channel admits Adult,
+channel admits approved users, the private-notes channel admits its designated owner,
 and the management channel admits only the operator. DMs are isolated per
 account, channel, and user.
 
@@ -55,55 +66,57 @@ account, channel, and user.
 
 - Provider: native OpenClaw `ollama`
 - Endpoint: `http://127.0.0.1:11434` (not a `/v1` compatibility path)
-- Primary: `ollama/gpt-oss:20b`
+- Main profile: `ollama/qwen3.8:27b-q4_K_M` (pre-production)
+- Default/other profiles: existing `ollama/gpt-oss:20b` settings retained
 - Fallback models: none
 - Context: 32,768
-- Maximum output: 2,048
+- Advertised model output metadata: 2,048; effective failed-request cap unmeasured
 - Provider timeout: 300 seconds
 - Ollama parameters: `num_ctx=32768`, `keep_alive=30m`
 - Memory embeddings: `ollama/qwen3-embedding:8b` (4096 dimensions)
 - Embedding fallback: `none`
 
-Host tools use OpenClaw's `full` profile and execute as the `codex`
-account on the gateway. Filesystem tools are not restricted to the OpenClaw
-workspace. Elevated/sudo execution is disabled, preserving the OS privilege
-boundary.
+The earlier host-tool baseline used the full profile; this is superseded for
+managed household agents. Current household policy exposes typed scoped tools
+and supported native task/child controls. Children are conversation-only.
+Restricted analysis uses its fixed native child and output publisher; do not
+reactivate broad host tools while diagnosing the pending native hook correction.
 
 ## Household data
 
 Persistent household data is ordinary Markdown in isolated workspaces:
 
-- Main/shared: `/home/operator/.openclaw/workspace`
-- Adult private: `/home/operator/.openclaw/workspace-natasha`
+- Main private workspace: `$HOME/.openclaw/workspace`
+- Adult private: `$HOME/.openclaw/workspace-natasha`
 - Each workspace: `USER.md`, `MEMORY.md`, `memory/`, private `notes/`,
   and private `LISTS.md`
 - Shared household lists/notes:
-  `/home/operator/.openclaw/shared/household/`
-- Derived indexes: `/home/operator/.openclaw/agents/<id>/agent/openclaw-agent.sqlite`
+  `$HOME/.openclaw/shared/household/`
+- Derived indexes: `$HOME/.openclaw/agents/<id>/agent/openclaw-agent.sqlite`
 
 Useful memory checks:
 
 ```bash
-/home/operator/.openclaw/bin/openclaw agents list --bindings --json
-/home/operator/.openclaw/bin/openclaw memory status --deep --json
-/home/operator/.openclaw/bin/openclaw memory index --agent natasha --force
-/home/operator/.openclaw/bin/openclaw plugins info active-memory --json
+$HOME/.openclaw/bin/openclaw agents list --bindings --json
+$HOME/.openclaw/bin/openclaw memory status --deep --json
+$HOME/.openclaw/bin/openclaw memory index --agent natasha --force
+$HOME/.openclaw/bin/openclaw plugins info active-memory --json
 ```
 
-Adult's direct messages enable cross-conversation transcript recall. Her
+The designated private agent's direct messages enable cross-conversation transcript recall. Its
 private Discord channel uses the same isolated agent and file memory, but
 OpenClaw does not ingest channel transcripts into Remember across
 conversations.
 
 Google Workspace uses `gog` `0.43.0`, OAuth client `house`, and account
-`hardy.aibot@gmail.com`. Calendar writes must use an explicit calendar ID and
+`household-bot@example.invalid`. Calendar writes must use an explicit calendar ID and
 be read back before success is reported.
 
 The account and client select the existing authorization, not the destination
 calendar. Every authenticated command passes
-`--account hardy.aibot@gmail.com --client house`. For calendar commands, the
-positional calendar ID selects House (`hardy.aibot@gmail.com`), Owner
-(`person-003@example.invalid`), or Adult (`person-004@example.invalid`). Generic references
+`--account household-bot@example.invalid --client house`. For calendar commands, the
+positional calendar ID selects House (`household-bot@example.invalid`), Owner
+(`alex@example.invalid`), or Adult (`natasha@example.invalid`). Generic references
 such as "the calendar", "our calendar", "family calendar", and "household
 calendar" default to House. Only an explicitly named destination calendar
 overrides that default; attendees and phrases such as "for Owner" do not.
@@ -112,8 +125,9 @@ Calendar creation uses local wall times with
 `--timezone America/New_York`, followed by `gog calendar event` readback using
 the returned event ID. Do not manually select a numeric offset. Inspect
 authorization only with `gog auth list`; never inspect gog credential, token,
-or keyring files, and never request credentials when that command already
-reports `hardy.aibot@gmail.com` with client `house`.
+or keyring files. An account in `gog auth list` proves configuration, not a
+usable grant. Classify an actual read-only provider failure before asking for
+reauthorization; never ask the user to paste credential contents into chat.
 
 The complete non-negotiable calendar route and command shape live at the top
 of `AGENTS.md`, which OpenClaw injects on every main-agent turn. The
@@ -126,9 +140,9 @@ service accounts with domain-wide delegation, not this consumer OAuth account.
 Markdown notes are the maintained local alternative.
 
 The OAuth token has Google Tasks scope, but the Tasks API is disabled in Cloud
-project `988413896481`. Enable it here if Google-backed task lists are wanted:
+project `<google-project-id>`. Enable it here if Google-backed task lists are wanted:
 
-<https://console.cloud.google.com/apis/library/tasks.googleapis.com?project=988413896481>
+<https://console.cloud.google.com/apis/library/tasks.googleapis.com?project=YOUR_PROJECT_ID>
 
 Markdown list management works without that API.
 
@@ -141,7 +155,7 @@ PDF URLs and attachments use the first-party `local-documents` skill. Its
 single entry point is:
 
 ```bash
-/home/operator/.openclaw/bin/read-pdf --url 'https://example.org/document.pdf' --mode auto
+$HOME/.openclaw/bin/read-pdf --url 'https://example.org/document.pdf' --mode auto
 ```
 
 It runs a bounded fast text path or the pinned CPU-only Docling/RapidOCR
@@ -160,22 +174,75 @@ tool-call, turn, or concurrency limits. See
 [`task-conductor.md`](task-conductor.md) for context allocation, recovery, and
 failure classification.
 
-For the intended Owner and Adult calendars, each owner must share the calendar
-with `hardy.aibot@gmail.com` and grant Make changes to events. No existing
-credential can create those external shares.
+The proposed default integration manages the bot-owned household calendar and
+invites named people or recipients covered by an agreed rule. This does not
+require direct write access to personal calendars. The older direct-edit route
+requires the owner's separate calendar share/grant and is not implied by an
+invitation. No credential can grant itself that authority.
 
 ## Updates and checks
 
 Upgrade only after reading upstream release notes:
 
 ```bash
-/home/operator/.openclaw/bin/openclaw update
-/home/operator/.openclaw/bin/openclaw config validate
-/home/operator/.openclaw/bin/openclaw plugins doctor
+$HOME/.openclaw/bin/openclaw update
+$HOME/.openclaw/bin/openclaw config validate
+$HOME/.openclaw/bin/openclaw plugins doctor
 systemctl --user restart openclaw-gateway.service
 ```
 
 After a restart, verify gateway health, Discord status, an Ollama GPU process,
 and one real read/write action. Do not treat a conversational claim as proof.
 The redacted repository configuration is documentation; the active file is
-`/home/operator/.openclaw/openclaw.json`.
+`$HOME/.openclaw/openclaw.json`.
+
+## Planned credentials and diagnosis
+
+External secret storage uses the agreed Bitwarden automation-project direction,
+reusing native SecretRef resolution. No connector is claimed deployed. Keep
+bootstrap credentials protected, resolve secrets only inside trusted connectors,
+and durably write back provider token rotations. See the
+[credential design](household-assistant-design.md#bitwarden-and-integration-credentials).
+
+Explicit log diagnosis is planned as an operator task with an enforced
+operational read-only tool surface and a redacted evidence reader. It can report
+a proposed fix but cannot apply it, restart services or replay mutating work.
+A later repair instruction is a separate task. See the
+[diagnostic design](household-assistant-design.md#explicit-diagnosis-without-repair).
+
+## Slice 1 deployment and recovery
+
+Household control 0.3.0 and application schema 2 are deployed. Use `/health`
+for process liveness and `/ready` for initialized service plus a fresh
+authenticated Gateway status probe. Neither promises free execution slots.
+Admin platform readiness checks configuration/dependencies without a model
+turn, vault lookup or household mutation.
+
+See [Slice 1 evidence and rollback](slice-1-runtime-platform.md) before changing
+delivery or restoring older code. The owner authorized cancelling historical
+requests in this pre-production environment; records were retained and both
+slots are now free. Future unknown effects require explicit reconciliation or
+authorized cancellation, never blind replay.
+`HARDY_HOME_DISPATCH_ENABLED=false` holds delivery while preserving new durable
+payloads. Keep current state before source/configuration rollback; do not
+overwrite post-cutover work with an older database. Complete functional and
+restore acceptance follows the full three-slice build.
+
+## Historical Slice 2 checkpoint
+
+At the earlier Slice 2 checkpoint, pre-production service 0.4.0 used app schema 3
+and Uplift schema 1. Both services and its native plugin were initialized and
+two slots were free. This is dated evidence, not current availability. [Slice 2 evidence](slice-2-domain-capabilities.md) supersedes older
+current-version statements while preserving their dated deployment history.
+
+Use protected domain readiness for dependency/configuration state and the
+native plugin's content-free initialization status for actual registration.
+Neither runs a model, resolves a secret or certifies a household workflow.
+Do not confuse production security mode (mock auth disabled) with production
+rollout; the owner explicitly identified this system as pre-production.
+
+Retain the pre-Slice-2 source/dependency/configuration/database/artifact backups.
+Do not downgrade new contact/financial data into old readers or replay unknown
+effects. OAuth, Bitwarden access, receipt catalog/grants and standing scheduler
+authorization remain configuration work; agent/UI/diagnostic behavior and full
+restore/functional acceptance remain after the complete build.

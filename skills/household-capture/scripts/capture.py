@@ -215,6 +215,20 @@ def next_id(contents: Iterable[str], wanted_prefix: str, day: dt.date) -> str:
     return f"{wanted_prefix}-{stamp}-{highest + 1:04d}"
 
 
+def entry_content(value: str) -> dict[str, Any]:
+    """Decode only the suffixes written by this owner; item text stays human text."""
+    metadata: dict[str, Any] = {}
+    status = re.search(r" _\((completed|removed): (\d{4}-\d{2}-\d{2})\)_$", value)
+    if status:
+        metadata[status[1] + "At"] = status[2]
+        value = value[:status.start()]
+    added = re.search(r" _\(added: (\d{4}-\d{2}-\d{2}); by: ([A-Za-z][A-Za-z0-9_-]{0,63})\)_$", value)
+    if added:
+        metadata.update(addedAt=added[1], addedBy=added[2])
+        value = value[:added.start()]
+    return {"text": value, **metadata}
+
+
 def entries(text: str, scope: str) -> list[dict[str, Any]]:
     current = None
     result = []
@@ -230,7 +244,7 @@ def entries(text: str, scope: str) -> list[dict[str, Any]]:
                     "scope": scope,
                     "section": current,
                     "done": match["done"].lower() == "x",
-                    "text": match["text"],
+                    **entry_content(match["text"]),
                     "origin": match["origin"],
                 }
             )
@@ -246,8 +260,7 @@ def list_title(scope: str, actor: str) -> str:
 def duplicate_open(items: Iterable[dict[str, Any]], section: str, text: str):
     wanted = " ".join(text.casefold().split())
     for item in items:
-        candidate = re.sub(r" _\(added:.*?\)_$", "", item["text"])
-        candidate = re.sub(r" \(due: \d{4}-\d{2}-\d{2}\)$", "", candidate)
+        candidate = re.sub(r" \(due: \d{4}-\d{2}-\d{2}\)$", "", item["text"])
         if item["section"] == section and " ".join(candidate.casefold().split()) == wanted:
             return item
     return None
@@ -310,7 +323,7 @@ def capture(layout: Layout, payload_text: str) -> dict[str, Any]:
                 raw_title = item["title"] or item["text"].splitlines()[0]
                 title = clean_line(raw_title, "title", 120).replace("[", "(").replace("]", ")")
                 if not current.strip():
-                    current = f"# Notes — {day.isoformat()}\n"
+                    current = f"# Notes - {day.isoformat()}\n"
                 block = (
                     f"\n## [{note_id}] {title}\n\n"
                     f"- Captured: {now_iso()}\n"
@@ -493,6 +506,21 @@ def note_entries(path: Path) -> list[dict[str, Any]]:
     return result
 
 
+def read_note(layout: Layout, scope: str, note_id: str) -> dict[str, Any]:
+    validate_scope(scope)
+    match = re.fullmatch(r"[A-Z]+N-(\d{8})-\d{4}", note_id)
+    if not match:
+        raise CaptureError("invalid note ID")
+    stamp = match.group(1)
+    try:
+        day = dt.date.fromisoformat(f"{stamp[:4]}-{stamp[4:6]}-{stamp[6:]}")
+    except ValueError as exc:
+        raise CaptureError("invalid note date") from exc
+    notes = note_entries(layout.notes_dir(scope) / f"{day.isoformat()}.md")
+    matches = [note for note in notes if note["id"] == note_id and note.get("visibility") == scope]
+    return {"ok": True, "note": matches[0] if len(matches) == 1 else None}
+
+
 def search_notes(layout: Layout, scope: str, query: str, limit: int) -> dict[str, Any]:
     selected = ("household", "personal") if scope == "both" else (scope,)
     if scope != "both":
@@ -600,6 +628,9 @@ def parser() -> argparse.ArgumentParser:
     command.add_argument("--scope", choices=("household", "personal", "both"), required=True)
     command.add_argument("--query", required=True)
     command.add_argument("--limit", type=int, default=10)
+    command = commands.add_parser("read-note")
+    command.add_argument("--scope", choices=tuple(SCOPES), required=True)
+    command.add_argument("--id", required=True)
     for action in ("complete", "restore"):
         command = commands.add_parser(action)
         command.add_argument("--scope", choices=tuple(SCOPES), required=True)
@@ -634,6 +665,8 @@ def main() -> int:
             if not 1 <= args.limit <= 100:
                 raise CaptureError("limit must be between 1 and 100")
             result = search_notes(layout, args.scope, args.query, args.limit)
+        elif args.command == "read-note":
+            result = read_note(layout, args.scope, args.id)
         elif args.command in ("complete", "restore"):
             result = move_item(layout, args.scope, args.id, args.command, None)
         elif args.command == "remove":

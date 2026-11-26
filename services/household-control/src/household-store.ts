@@ -1,13 +1,33 @@
+import type { MessageTaskContext } from "./request-context.ts";
 import { randomUUID } from "node:crypto";
 import type {
   ChatMessage,
   Conversation,
+  ConversationFolder,
+  ConversationActivity,
   FamilyProfile,
   HouseholdAgentAdapter,
+  HouseholdConversationContext,
+  HouseholdCheckpoint,
+  HouseholdCheckpointUpdate,
+  HouseholdGoalMutation,
+  HouseholdGoalMutationResult,
+  HouseholdNativeContext,
   HouseholdSnapshot,
   PromptPreset,
   SubmissionReceipt,
 } from "./domain.ts";
+
+export type HouseholdSubmissionArgs = {
+  profile: FamilyProfile;
+  conversationId: string;
+  text: string;
+  submissionId: string;
+  originDeviceId?: string;
+  nativeContext?: HouseholdNativeContext;
+  goalStart?: { issuedAtMs: number };
+  taskContext?: MessageTaskContext;
+};
 
 export class HouseholdStore {
   readonly maxActiveRuns = 2;
@@ -26,7 +46,7 @@ export class HouseholdStore {
   ) {
     this.profiles = profiles;
     this.presets = presets;
-    this.conversations = conversations;
+    this.conversations = conversations.map(conversation => ({ tags: [], ...conversation }));
     this.adapter = adapter;
     this.adapterMode = adapter.mode;
   }
@@ -71,7 +91,7 @@ export class HouseholdStore {
     return this.listConversations(profile).find((conversation) => conversation.id === conversationId);
   }
 
-  async createConversation(profile: FamilyProfile, title: string, presetId: string | null): Promise<Conversation> {
+  async createConversation(profile: FamilyProfile, title: string, presetId: string | null, audience: "private" | "household" = "private"): Promise<Conversation> {
     if (presetId !== null && !this.listPresets(profile).some((preset) => preset.id === presetId)) {
       throw new Error("preset_not_allowed");
     }
@@ -83,12 +103,20 @@ export class HouseholdStore {
       agentId: profile.agentId,
       sessionKey: `hardy-home:${id}`,
       title,
+      tags: [],
       presetId,
-      audience: "private",
+      audience,
       updatedAt: new Date().toISOString(),
     };
     await this.adapter.ensureConversation(conversation);
     this.conversations.push(conversation);
+    return conversation;
+  }
+
+  updateConversationMetadata(profile: FamilyProfile, id: string, title: string, tags?: string[]): Conversation | undefined {
+    const conversation = this.getConversation(profile, id);
+    if (conversation?.ownerProfileId !== profile.id || conversation.agentId !== profile.agentId) return undefined;
+    Object.assign(conversation, { title, ...(tags === undefined ? {} : { tags }) });
     return conversation;
   }
 
@@ -98,18 +126,13 @@ export class HouseholdStore {
     return this.adapter.listMessages(conversation);
   }
 
-  async submitMessage(args: {
-    profile: FamilyProfile;
-    conversationId: string;
-    text: string;
-    submissionId: string;
-  }): Promise<SubmissionReceipt | undefined> {
+  async submitMessage(args: HouseholdSubmissionArgs): Promise<SubmissionReceipt | undefined> {
     const conversation = this.getConversation(args.profile, args.conversationId);
-    if (!conversation) return undefined;
+    if (!conversation || conversation.ownerProfileId !== args.profile.id || conversation.agentId !== args.profile.agentId) return undefined;
 
     const existing = this.submissions.get(args.submissionId);
     if (existing) {
-      if (existing.receipt.conversationId !== args.conversationId || existing.text !== args.text) {
+      if (existing.receipt.conversationId !== args.conversationId || existing.receipt.profileId !== args.profile.id || existing.text !== args.text) {
         throw new Error("submission_conflict");
       }
       return existing.receipt;
@@ -134,7 +157,7 @@ export class HouseholdStore {
 
   async cancel(profile: FamilyProfile, conversationId: string, runId?: string): Promise<boolean> {
     const conversation = this.getConversation(profile, conversationId);
-    if (!conversation) return false;
+    if (!conversation || conversation.ownerProfileId !== profile.id || conversation.agentId !== profile.agentId) return false;
     await this.adapter.cancel(conversation, runId);
     return true;
   }
@@ -159,20 +182,31 @@ export class HouseholdStore {
 export interface HouseholdStoreApi {
   readonly maxActiveRuns: number;
   readonly adapterMode: HouseholdAgentAdapter["mode"];
+  start?(): Promise<void>;
+  onSubmissionEvent?(listener: (receipt: SubmissionReceipt) => void): () => void;
+  getContext?(profile: FamilyProfile, conversationId: string): Promise<HouseholdConversationContext | undefined>;
+  getConversationActivity?(profile: FamilyProfile, conversationId: string): ConversationActivity | undefined;
+  getCheckpoint?(profile: FamilyProfile, conversationId: string): Promise<HouseholdCheckpoint | null | undefined>;
+  updateCheckpoint?(profile: FamilyProfile, conversationId: string, update: HouseholdCheckpointUpdate, originDeviceId?: string): Promise<HouseholdCheckpoint | undefined>;
+  updateGoal?(profile: FamilyProfile, conversationId: string, operation: HouseholdGoalMutation, originDeviceId?: string): Promise<HouseholdGoalMutationResult | undefined>;
   getProfile(profileId: string): FamilyProfile | undefined;
   getSnapshot(): HouseholdSnapshot;
   reconcileRuns(): Promise<void>;
   listPresets(profile: FamilyProfile): PromptPreset[];
   listConversations(profile: FamilyProfile): Conversation[];
   getConversation(profile: FamilyProfile, conversationId: string): Conversation | undefined;
-  createConversation(profile: FamilyProfile, title: string, presetId: string | null): Promise<Conversation>;
+  createConversation(profile: FamilyProfile, title: string, presetId: string | null, audience?: "private" | "household"): Promise<Conversation>;
+  updateConversationMetadata(profile: FamilyProfile, id: string, title: string, tags?: string[]): Conversation | undefined;
+  listConversationFolders?(profile:FamilyProfile):ConversationFolder[];
+  createConversationFolder?(profile:FamilyProfile,id:string,name:string):{folder:ConversationFolder;created:boolean};
+  renameConversationFolder?(profile:FamilyProfile,id:string,name:string):ConversationFolder|undefined;
+  deleteConversationFolder?(profile:FamilyProfile,id:string):boolean;
+  moveConversationToFolder?(profile:FamilyProfile,id:string,folderId:string|null):Conversation|undefined;
+  deleteConversation?(profile:FamilyProfile,id:string,originDeviceId?:string):Promise<boolean>;
   listMessages(profile: FamilyProfile, conversationId: string): Promise<ChatMessage[] | undefined>;
-  submitMessage(args: {
-    profile: FamilyProfile;
-    conversationId: string;
-    text: string;
-    submissionId: string;
-  }): Promise<SubmissionReceipt | undefined>;
+  submitMessage(args: HouseholdSubmissionArgs): Promise<SubmissionReceipt | undefined>;
+  cancelTarget?(profile: FamilyProfile, conversationId: string,
+    operation: {operationId:string;issuedAtMs:number;goalId?:string;runId?:string},originDeviceId?:string): Promise<{cancelled:boolean;replayed:boolean;goalId?:string;runId?:string}|undefined>;
   cancel(profile: FamilyProfile, conversationId: string, runId?: string): Promise<boolean>;
   findBySessionKey(sessionKey: string): Conversation | undefined;
   onAgentEvent(listener: Parameters<HouseholdAgentAdapter["onEvent"]>[0]): () => void;

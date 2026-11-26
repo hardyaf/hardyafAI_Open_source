@@ -1,126 +1,49 @@
-# Multi-stage task conductor
+# Task conductor and native continuation
 
-Jarvis uses a generic OpenClaw workspace skill to decompose complex requests
-without maintaining a separate workflow for every document, calendar, note,
-list, or future integration.
+Updated November 4, 2026. This describes the revised coordination boundary. [Current status](current-status.md) owns deployment and acceptance; the [complexity audit](bookkeeping-complexity-audit.md) preserves the baseline findings.
 
-## Trigger
+## Current owners
 
-The `task-conductor` skill applies when a request:
+Stock OpenClaw owns sessions, goals, parent/child runs, yield/wakeup, execution and scheduling. The household application owns authenticated admission, source binding, scoped capability projection, delivery status and effect receipts. Domain services own actual business state. TaskFlow coordinates checkpoints, selected context, questions and outcome evidence over those existing owners.
 
-- turns a document, attachment, URL, or large text source into external
-  changes;
-- spans multiple services, stores, accounts, or integrations;
-- contains a destination or identity ambiguity that can change the result;
-- contains several dependent actions; or
-- requires independent verification of persisted state.
+The task checkpoint is an immutable scoped artifact referenced by the existing conversation_checkpoints CAS pointer. There is no current Markdown task-ledger directory, second task engine or application self-prompt queue. The old October ledger description is superseded.
 
-Simple reads and direct single-purpose actions remain in the main session.
+## Current model interface
 
-## Execution model
+The [task-conductor skill](../skills/task-conductor/SKILL.md) and [typed task catalog](../services/household-control/src/task-flow/catalog.ts) define the executable interface. Main interprets the request, loads matching skills and exact typed schemas, then performs permitted work. Longer work uses native goals/children and compact checkpoints when useful. Outcomes may be declared in the single completion call after delivery; owner receipt association and truthful progress projection are application mechanics.
 
-The main Jarvis session acts as conductor. Substantial gather, act, and verify
-phases can run in fresh OpenClaw worker sessions. Workers receive only their
-phase assignment, the minimum relevant context, applicable skill, authority
-boundary, and a task-ledger path. They do not inherit permission to broaden the
-request.
+Ordinary source-bound authorized actions and memory curation need no native goal or formal plan. Complex work remains native-goal owned. `task.context` restores current owner facts without changing a checkpoint; `task.complete` checks proof and coordinates native completion. Read results are observations, not committed operation receipts. A readback can inform the answer without another formal outcome or an invented operation ID. See the [implementation record](bookkeeping-simplification-implementation.md) for retained boundaries and compatibility surfaces.
 
-The conductor uses semantic milestones rather than numerical tool-call, turn,
-or concurrency limits. This is intentional for the initial rollout; behavior
-will be observed before adding restraints.
+The original human/native request stays immutable. Unverified model outcome drafts and resource hints can be corrected or explicitly retired with `planRevisionReason`, recorded in the existing checkpoint history. Omitted outcomes stay required. Once actual owner proof or fresh human steering binds a requirement, internal authority and unique-target pins survive strategy changes and proof invalidation. Main cannot release those requirements through a draft correction; material target/acceptance changes or retirement require fresh scoped human steering. No new ledger is involved.
 
-## Context allocation
+Workers receive their current phase assignment. The original objective is a boundary/reference, not a replacement child assignment. Root identity, audience, permitted capabilities and diagnosis restrictions carry through trusted native lineage. Parents own overall completion; a child's successful announcement alone is not evidence that the user objective was fulfilled.
 
-Cumulative token processing is diagnostic only. The governing measurement is
-the active prompt and the headroom remaining for expected tool results,
-reasoning, output, and OpenClaw's reserve.
+## Continuation and human replies
 
-The current standard profile remains:
+Native unfinished-plan continuation is armed by the actual current-run `progress_card` callback. Call the real tool with `{}` when unfinished work needs another native turn; trusted code supplies truthful progress, including an unfinished projection before formal outcomes exist. Progress does not authorize business effects. A progress-card RPC alone cannot arm the callback. Do not hide effects from native settlement or add an alternate self-prompt loop.
 
-- model context: 32,768 tokens;
-- preferred prompt budget before reserve: 24,576 tokens;
-- reserve: 8,192 tokens;
-- maximum model output: 2,048 tokens.
+Native `sessions_yield` is direct-only and must use its visible typed function; it has no ToolSearch ID and must not be searched or wrapped with `tool_call`. Parent child-completion waiting omits `waitFor`; message mode waits for a separate external continuation. Same-agent children use `completionTarget: parent`, and native settlement wakes the original parent.
 
-Each substantial phase should begin in a fresh worker. Complete source material
-stays in files or external records; workers pass paths, stable IDs, hashes,
-evidence coordinates, and compact normalized results. If a fresh standard
-worker cannot fit the phase with the reserve intact, the ledger records
-`larger-context-needed` and the source is processed in grounded chunks or routed
-to a separately approved larger-context profile.
+The native finalizer refuses unsafe revision rewinds after potential deterministic effects. Productive work uses supported continuation and child settlement. A durable question explicitly finalizes the current run while the goal remains pending for a human reply. A normal reply may answer, clarify, redirect, cancel, request another OCR attempt or introduce a new topic; it is not limited to fixed response commands.
 
-No dynamic `num_ctx` change, reserve reduction, cloud fallback, tool-call cap,
-turn cap, or concurrency cap is part of this policy.
+Preserve the original goal/source binding, current correction and verified effects across fresh workers, compaction and restart. Reconcile unknown effects before another write. A run ending is distinct from the original goal being complete.
 
-## Recovery ledger
+## Context and output
 
-Active ledgers are Markdown under:
+Use active prompt/headroom measurements and artifact-backed sources with compact handles/results. Cumulative processed tokens are a diagnostic, not the active context size. The ordinary baseline uses 32K context; deployed model details belong to current status.
 
-```text
-/home/operator/.openclaw/workspace/.openclaw/task-ledgers/active/
-```
+The model metadata advertises an output limit, but inspected successful calls exceeded that advertised value. Its presence does not establish the actual request cap or prove truncation caused a failure. See the [measured runtime record](model-runtime-known-issues.md). The owner deferred arbitrary productive tool/turn caps; preserve native resource safeguards, cancellation and stopping repeated no-progress behavior.
 
-Completed and non-resumable failed ledgers move to sibling `completed/` and
-`failed/` directories. A ledger stores the goal, authority, confirmed
-destinations, context plan, artifact inputs, progress marker, evidence
-references, stable action IDs, verification, next phase, and failure class. It
-must never contain credentials, authorization codes, or large raw tool output.
+## Verification and reporting
 
-The ledger is operational recovery state, not long-term household memory. It
-allows a fresh worker to resume only the unfinished phase after malformed model
-output and prevents blind repetition of external writes.
+Actual domain state and receipts establish delivery. Main declares the requested results and uses exact owner-issued operation/resource IDs or scoped output handles. It must not fabricate an operation for a read or combine several resource IDs into one. A saved plan, successful child announcement, contact record or confident final prose does not by itself establish all requested outcomes. Preserve destination, source, field provenance, reconciliation and acceptance distinctions. Questions and partial/failed work remain visible.
 
-## Verification and failure classes
+When explicit proof is unavailable, `task.complete` returns pending `evidence_required`, bounded rejection codes and current verified owner candidates. Impossible read-tool operation requirements receive a typed outcome issue. Invalid proposals do not alter the checkpoint. Main can correct unverified drafts with a recorded reason and use actual proof without repeating effects. Source/scope/permission failures remain hard errors; accepted proof still has to match current tool, business state and resource. No pending result completes the native goal.
 
-The verification phase reads the real destination and compares identity,
-destination, count, important values, persistence, and tool execution with the
-plan. Jarvis reports failures as one of:
+The [TaskFlow implementation](TASK-FLOW-IMPLEMENTATION.md) documents checkpoints, current-source checks, evidence and rollback; [native hooks](NATIVE-TASK-HOOKS-AND-ANALYSIS.md) document supported integration details. The [simplification record](bookkeeping-simplification-implementation.md) describes implemented changes; the complexity audit retains the baseline findings.
 
-- input/data;
-- configuration/integration;
-- model/orchestration; or
-- hardware/resource.
+## Historical component evidence
 
-This keeps working permissions or integrations from being blamed for a model
-continuation mistake.
+October 5 native experiments demonstrated skill selection and a parent/child spawn/yield/resume round trip without household mutations. The round trip required ten tool calls and recovered from two model navigation mistakes. Its largest parent prompt was 16,510 tokens; cumulative processing was approximately 129,408 tokens. Those measurements describe that experiment, not a current output cap or complete household-task acceptance.
 
-## Files
-
-- Policy: `/home/operator/.openclaw/workspace/AGENTS.md`
-- Skill: `/home/operator/.openclaw/workspace/skills/task-conductor/SKILL.md`
-- Ledgers: `/home/operator/.openclaw/workspace/.openclaw/task-ledgers/`
-
-No upstream OpenClaw source is modified.
-
-## Acceptance evidence
-
-Validated on OpenClaw 2026.9.8 with `ollama/gpt-oss:20b` on 2026-10-05 UTC.
-
-- Policy-selection run `29ec3ca4-1c49-4644-b3b8-ad66aa26d3ac` selected
-  `task-conductor`, identified the unresolved calendar destination, proposed
-  fresh gather/write/verify contexts, and applied no numerical limits.
-- Worker round-trip run `515934a5-d6ea-4f3c-947a-a4d719733eab` discovered
-  `sessions_spawn`, started child run
-  `0febd917-ec04-4979-88f4-c429a93b0e97`, yielded, received
-  `conductor-worker-ok`, and resumed the parent session.
-- No external service or household-data mutation was permitted or attempted.
-
-The worker test used ten tool calls and encountered two recoverable
-model-orchestration mistakes: an empty initial tool search and an incorrect
-first skill-read path. The complete parent-and-child round trip processed about
-129,408 cumulative tokens. The parent used 116,746 input and 3,547 output
-tokens across nine calls; the child used 8,868 input and 247 output tokens.
-The largest individual parent prompt was 16,510 tokens, below the 32,768-token
-context window and the 24,576-token preferred prompt budget before reserve.
-Cumulative processing is retained as a compute diagnostic; peak active prompt,
-remaining headroom, refreshes, and repeated no-progress actions are the
-operational metrics. No tool-call, turn, or concurrency restraint was added.
-
-Context-headroom policy run `d223889b-69c5-4e2e-9092-9405165ff8d3`
-loaded the revised skill with one successful read and no tool failures. Jarvis
-used active reserve as the continuation gate, kept complete results
-artifact-backed, stopped identical no-progress retries, and applied no
-numerical caps. The final call used a 12,694-token prompt; OpenClaw's pre-prompt
-estimate was 15,662 of the 24,576-token preferred prompt budget, leaving 8,914
-tokens before reserve. No compaction, external service access, or household
-data mutation occurred.
+Initial November campaign attempts produced real parent/child list effects and original-parent wakeup without accepting complete goal delivery. Progress/evidence failures, card extraction skipping and automatic-memory failures remain in the measured runtime record. [Current status](current-status.md) owns later model outcomes; passing component tests alone do not certify natural model execution.

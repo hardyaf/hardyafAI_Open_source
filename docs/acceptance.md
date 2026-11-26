@@ -1,5 +1,14 @@
 # Acceptance evidence
 
+> Deployment host/account identifiers are redacted. Example addresses use
+> `example.invalid`; paths use `$HOME`. Set actual connection, account and
+> storage values from protected operator configuration.
+
+**November 3 interpretation:** these are dated component and workflow checkpoints.
+They do not prove current provider authorization or completion of the new product
+roadmap. See [current status](current-status.md) and the
+[consolidated implementation acceptance](household-assistant-implementation-plan.md#consolidated-functionality-campaign-after-the-full-build).
+
 Run on 2026-10-04 against the active host.
 
 ## Focused installation checks
@@ -10,7 +19,7 @@ Run on 2026-10-04 against the active host.
 - `gpt-oss:20b` loaded fully on the RTX 3090 at 32,768 context.
 - `nomic-embed-text` loaded fully on the GPU; no cloud fallback exists.
 - A direct local-model smoke returned `LOCAL_MODEL_OK`.
-- Discord message `100000000000000003` was sent by the bot to the
+- Discord message `<verification-message-id>` was sent by the bot to the
   household channel and independently read back.
 
 The direct GPU probe generated at about 11.3 tokens per second after a
@@ -152,7 +161,7 @@ embeddings, or GPU execution.
 
 The pre-change live files are recoverable from:
 
-    /home/operator/.openclaw/backups/household-capture-20261005T002553
+    $HOME/.openclaw/backups/household-capture-20261005T002553
 
 ## Local PDF extraction upgrade
 
@@ -182,7 +191,7 @@ Run on 2026-10-05:
   returned the same 22 dates, time, location, and page evidence. No calendar
   tool ran and no calendar event was written.
 - Safety probes rejected a loopback URL, a local file outside
-  `/home/operator/.openclaw`, and an out-of-range inline excerpt size.
+  `$HOME/.openclaw`, and an out-of-range inline excerpt size.
 - The final GPU process list contained only Ollama at 13,398 MiB. Gateway
   health passed, Discord remained ready, and 41 GiB remained free on root.
 
@@ -209,7 +218,7 @@ Run on 2026-10-05:
 - Root cause of the Discord failure was command construction, not missing
   access. The model used `house` as `--account` even though it is the OAuth
   client name, then incorrectly asked for credentials.
-- The authenticated identity is always `hardy.aibot@gmail.com`, the OAuth
+- The authenticated identity is always `household-bot@example.invalid`, the OAuth
   client is always `house`, and the positional calendar ID alone selects
   House, Owner, or Adult.
 - Generic destinations such as `the calendar`, `our calendar`, `family
@@ -222,7 +231,7 @@ Run on 2026-10-05:
   the top of `AGENTS.md` so they are always injected. The workspace `gog`
   skill carries the fuller read/write and readback procedure.
 - Every authenticated command uses
-  `--account hardy.aibot@gmail.com --client house`. Event wall times use
+  `--account household-bot@example.invalid --client house`. Event wall times use
   `YYYY-MM-DDTHH:MM:SS --timezone America/New_York`, without a guessed
   numeric offset. A successful write must be read back by returned event ID.
 - Auth status is checked only with `gog auth list`. The policy forbids
@@ -240,8 +249,8 @@ The final isolated acceptance run
 `3bd2737e-30ad-4f88-a901-ab7c3a181dfb` used `gpt-oss:20b` and completed in
 two assistant turns with exactly one successful `exec` call and zero tool
 failures. For the adversarial wording `family calendar for Owner`, it selected
-House (`hardy.aibot@gmail.com`), retained account
-`hardy.aibot@gmail.com` and client `house`, emitted the supported
+House (`household-bot@example.invalid`), retained account
+`household-bot@example.invalid` and client `house`, emitted the supported
 `--summary/--from/--to/--timezone` command, and confirmed the existing auth
 profile with `gog auth list`. No calendar create call ran and no event was
 written. The final prompt used 11,597 tokens, retained 7,816 tokens of prompt
@@ -257,4 +266,4 @@ and the gateway remained active. Deployment hashes:
 
 The original pre-change live files are recoverable from:
 
-    /home/operator/.openclaw/workspace/.openclaw/backups/calendar-routing-20261005T000635
+    $HOME/.openclaw/workspace/.openclaw/backups/calendar-routing-20261005T000635
