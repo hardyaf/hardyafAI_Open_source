@@ -1,0 +1,22 @@
+{
+  "name": "@hardy/household-domains",
+  "version": "0.7.0",
+  "private": true,
+  "type": "module",
+  "peerDependencies": {
+    "openclaw": "2026.9.8"
+  },
+  "openclaw": {
+    "extensions": [
+      "./index.mjs"
+    ],
+    "compat": {
+      "pluginApi": "2026.9.8",
+      "minGatewayVersion": "2026.9.8"
+    },
+    "build": {
+      "openclawVersion": "2026.9.8",
+      "pluginSdkVersion": "2026.9.8"
+    }
+  }
+}

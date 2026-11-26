@@ -1,0 +1,12 @@
+[Unit]
+Description=Official Google Health Android guest
+Requires=charge6-display.service
+After=charge6-display.service
+[Service]
+Type=exec
+ExecStart=/usr/bin/sg kvm -c "exec @PILOT_ROOT@/tools/launch-@GUEST_ID@.sh"
+ExecStop=@PILOT_ROOT@/tools/fitbit-control.py shutdown @GUEST_ID@
+TimeoutStopSec=40
+KillMode=control-group
+Restart=no
+LimitCORE=0

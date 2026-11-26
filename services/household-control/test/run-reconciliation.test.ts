@@ -12,13 +12,19 @@ async function createRunningTurn(label: string) {
   const profile = store.getProfile("alex");
   assert.ok(profile);
   const conversation = await store.createConversation(profile, label, null);
-  const receipt = await store.submitMessage({
+  const admitted = await store.submitMessage({
     profile,
     conversationId: conversation.id,
     text: "Reconnect acceptance",
     submissionId: `submission-${label.replaceAll(" ", "-")}`,
   });
-  assert.ok(receipt);
+  assert.ok(admitted);
+  assert.equal(admitted.status, "queued");
+  assert.equal(store.getProfile("alex")?.status, "queued");
+  await store.reconcileRuns();
+  const receipt = database.getSubmission(admitted.submissionId)!.receipt;
+  assert.equal(receipt.status, "running");
+  assert.ok(receipt.runId);
   assert.equal(store.getProfile("alex")?.status, "working");
   return { adapter, conversation, receipt, store, unsubscribe };
 }
@@ -31,6 +37,14 @@ test("canonical OpenClaw event keys resolve to household conversations", async (
       runId: fixture.receipt.runId,
       phase: "complete",
     });
+    // A terminal event is a wake hint, not proof that the current native run ended.
+    assert.equal(fixture.store.getProfile("alex")?.status, "working");
+    await fixture.store.reconcileRuns();
+    assert.equal(fixture.store.getProfile("alex")?.status, "working");
+    fixture.adapter.setRunState(fixture.conversation, {
+      status: "complete", runId: fixture.receipt.runId, updatedAt: new Date(Date.now() + 1_000).toISOString(),
+    });
+    await fixture.store.reconcileRuns();
     assert.equal(fixture.store.getProfile("alex")?.status, "available");
     const replay = await fixture.store.submitMessage({
       profile: fixture.store.getProfile("alex")!,

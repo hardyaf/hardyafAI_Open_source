@@ -1,0 +1,3 @@
+# Preserve exact hashes of the reviewed native compatibility payloads.
+deploy/hardybot/patches/native-context-budget.json -text
+deploy/hardybot/patches/*.patch -text

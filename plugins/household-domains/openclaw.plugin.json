@@ -1,0 +1,396 @@
+{
+  "id": "hardy-household",
+  "name": "Hardy household capabilities",
+  "version": "0.7.0",
+  "description": "Typed household capabilities behind current identity, resource and effect boundaries.",
+  "activation": {
+    "onStartup": true
+  },
+  "contracts": {
+    "tools": [
+      "household_analysis_publish_output",
+      "household_analysis_publish_report",
+      "household_analysis_result",
+      "household_analysis_start",
+      "household_calendar_connections",
+      "household_calendar_create",
+      "household_calendar_delete",
+      "household_calendar_find_operation",
+      "household_calendar_get",
+      "household_calendar_list",
+      "household_calendar_resolve_time",
+      "household_calendar_update",
+      "household_contacts_capture_card",
+      "household_contacts_change_audience",
+      "household_contacts_get",
+      "household_contacts_operation_status",
+      "household_contacts_revise",
+      "household_contacts_revisions",
+      "household_contacts_search",
+      "household_diagnostics_evidence",
+      "household_display_publish",
+      "household_documents_extract",
+      "household_documents_read_extraction",
+      "household_effects_inspect",
+      "household_email_connections",
+      "household_email_read",
+      "household_email_search",
+      "household_lists_capture",
+      "household_lists_complete",
+      "household_lists_display",
+      "household_lists_read",
+      "household_lists_recent_notes",
+      "household_lists_remove",
+      "household_lists_restore",
+      "household_lists_search_notes",
+      "household_memory_annotate",
+      "household_memory_compile",
+      "household_memory_get",
+      "household_memory_search",
+      "household_memory_source_forget",
+      "household_memory_source_list",
+      "household_memory_source_read",
+      "household_memory_source_references",
+      "household_memory_source_save",
+      "household_memory_source_supersede",
+      "household_memory_status",
+      "household_memory_synthesize",
+      "household_receipts_attempt_record",
+      "household_receipts_candidate_accept",
+      "household_receipts_candidate_get",
+      "household_receipts_candidate_save",
+      "household_receipts_candidate_validate",
+      "household_receipts_duplicate_find",
+      "household_receipts_evidence_add",
+      "household_receipts_evidence_list",
+      "household_receipts_evidence_read",
+      "household_receipts_operation_get",
+      "household_receipts_project_context",
+      "household_receipts_project_list",
+      "household_receipts_project_upsert",
+      "household_receipts_receipt_dispute",
+      "household_receipts_receipt_exclude",
+      "household_receipts_receipt_get",
+      "household_receipts_receipt_list",
+      "household_receipts_record_extraction",
+      "household_receipts_record_project_context",
+      "household_receipts_record_user_statement",
+      "household_receipts_report_generate",
+      "household_receipts_review_get",
+      "household_receipts_review_list",
+      "household_receipts_review_respond",
+      "household_receipts_source_get",
+      "household_receipts_source_intake",
+      "household_schedule_cancel",
+      "household_schedule_create",
+      "household_schedule_get",
+      "household_schedule_list",
+      "household_schedule_remove",
+      "household_schedule_update",
+      "household_task_ask_question",
+      "household_task_bind_reply",
+      "household_task_checkpoint",
+      "household_task_context",
+      "household_task_finish",
+      "household_task_select_domains",
+      "household_task_stop",
+      "household_task_verify_outcome",
+      "household_task_complete",
+      "household_memory_remember",
+      "household_memory_save_recipe"
+    ],
+    "trustedToolPolicies": [
+      "hardy-household-task-boundary"
+    ]
+  },
+  "toolMetadata": {
+    "household_analysis_publish_output": {
+      "optional": true
+    },
+    "household_analysis_publish_report": {
+      "optional": true
+    },
+    "household_analysis_result": {
+      "optional": true
+    },
+    "household_analysis_start": {
+      "optional": true
+    },
+    "household_calendar_connections": {
+      "optional": true
+    },
+    "household_calendar_create": {
+      "optional": true
+    },
+    "household_calendar_delete": {
+      "optional": true
+    },
+    "household_calendar_find_operation": {
+      "optional": true
+    },
+    "household_calendar_get": {
+      "optional": true
+    },
+    "household_calendar_list": {
+      "optional": true
+    },
+    "household_calendar_resolve_time": {
+      "optional": true
+    },
+    "household_calendar_update": {
+      "optional": true
+    },
+    "household_contacts_capture_card": {
+      "optional": true
+    },
+    "household_contacts_change_audience": {
+      "optional": true
+    },
+    "household_contacts_get": {
+      "optional": true
+    },
+    "household_contacts_operation_status": {
+      "optional": true
+    },
+    "household_contacts_revise": {
+      "optional": true
+    },
+    "household_contacts_revisions": {
+      "optional": true
+    },
+    "household_contacts_search": {
+      "optional": true
+    },
+    "household_diagnostics_evidence": {
+      "optional": true
+    },
+    "household_display_publish": {
+      "optional": true
+    },
+    "household_documents_extract": {
+      "optional": true
+    },
+    "household_documents_read_extraction": {
+      "optional": true
+    },
+    "household_effects_inspect": {
+      "optional": true
+    },
+    "household_email_connections": {
+      "optional": true
+    },
+    "household_email_read": {
+      "optional": true
+    },
+    "household_email_search": {
+      "optional": true
+    },
+    "household_lists_capture": {
+      "optional": true
+    },
+    "household_lists_complete": {
+      "optional": true
+    },
+    "household_lists_display": {
+      "optional": true
+    },
+    "household_lists_read": {
+      "optional": true
+    },
+    "household_lists_recent_notes": {
+      "optional": true
+    },
+    "household_lists_remove": {
+      "optional": true
+    },
+    "household_lists_restore": {
+      "optional": true
+    },
+    "household_lists_search_notes": {
+      "optional": true
+    },
+    "household_memory_annotate": {
+      "optional": true
+    },
+    "household_memory_compile": {
+      "optional": true
+    },
+    "household_memory_get": {
+      "optional": true
+    },
+    "household_memory_search": {
+      "optional": true
+    },
+    "household_memory_source_forget": {
+      "optional": true
+    },
+    "household_memory_source_list": {
+      "optional": true
+    },
+    "household_memory_source_read": {
+      "optional": true
+    },
+    "household_memory_source_references": {
+      "optional": true
+    },
+    "household_memory_source_save": {
+      "optional": true
+    },
+    "household_memory_source_supersede": {
+      "optional": true
+    },
+    "household_memory_status": {
+      "optional": true
+    },
+    "household_memory_synthesize": {
+      "optional": true
+    },
+    "household_receipts_attempt_record": {
+      "optional": true
+    },
+    "household_receipts_candidate_accept": {
+      "optional": true
+    },
+    "household_receipts_candidate_get": {
+      "optional": true
+    },
+    "household_receipts_candidate_save": {
+      "optional": true
+    },
+    "household_receipts_candidate_validate": {
+      "optional": true
+    },
+    "household_receipts_duplicate_find": {
+      "optional": true
+    },
+    "household_receipts_evidence_add": {
+      "optional": true
+    },
+    "household_receipts_evidence_list": {
+      "optional": true
+    },
+    "household_receipts_evidence_read": {
+      "optional": true
+    },
+    "household_receipts_operation_get": {
+      "optional": true
+    },
+    "household_receipts_project_context": {
+      "optional": true
+    },
+    "household_receipts_project_list": {
+      "optional": true
+    },
+    "household_receipts_project_upsert": {
+      "optional": true
+    },
+    "household_receipts_receipt_dispute": {
+      "optional": true
+    },
+    "household_receipts_receipt_exclude": {
+      "optional": true
+    },
+    "household_receipts_receipt_get": {
+      "optional": true
+    },
+    "household_receipts_receipt_list": {
+      "optional": true
+    },
+    "household_receipts_record_extraction": {
+      "optional": true
+    },
+    "household_receipts_record_project_context": {
+      "optional": true
+    },
+    "household_receipts_record_user_statement": {
+      "optional": true
+    },
+    "household_receipts_report_generate": {
+      "optional": true
+    },
+    "household_receipts_review_get": {
+      "optional": true
+    },
+    "household_receipts_review_list": {
+      "optional": true
+    },
+    "household_receipts_review_respond": {
+      "optional": true
+    },
+    "household_receipts_source_get": {
+      "optional": true
+    },
+    "household_receipts_source_intake": {
+      "optional": true
+    },
+    "household_schedule_cancel": {
+      "optional": true
+    },
+    "household_schedule_create": {
+      "optional": true
+    },
+    "household_schedule_get": {
+      "optional": true
+    },
+    "household_schedule_list": {
+      "optional": true
+    },
+    "household_schedule_remove": {
+      "optional": true
+    },
+    "household_schedule_update": {
+      "optional": true
+    },
+    "household_task_ask_question": {
+      "optional": true
+    },
+    "household_task_bind_reply": {
+      "optional": true
+    },
+    "household_task_checkpoint": {
+      "optional": true
+    },
+    "household_task_context": {
+      "optional": true
+    },
+    "household_task_finish": {
+      "optional": true
+    },
+    "household_task_select_domains": {
+      "optional": true
+    },
+    "household_task_verify_outcome": {
+      "optional": true
+    },
+    "household_task_stop": {
+      "optional": true
+    },
+    "household_task_complete": {
+      "optional": true
+    },
+    "household_memory_remember": {
+      "optional": true
+    },
+    "household_memory_save_recipe": {
+      "optional": true
+    }
+  },
+  "configSchema": {
+    "type": "object",
+    "additionalProperties": false,
+    "required": [
+      "controlEnvironmentPath",
+      "domainConfigurationPath"
+    ],
+    "properties": {
+      "controlEnvironmentPath": {
+        "type": "string",
+        "minLength": 1
+      },
+      "domainConfigurationPath": {
+        "type": "string",
+        "minLength": 1
+      }
+    }
+  }
+}

@@ -1,4 +1,22 @@
-# Memory acceptance suite
+# Historical memory acceptance guidance — retired
+
+Retired November 4, 2026. The checks below document an earlier workspace-file,
+transcript-index and Active Memory design. They are preserved as historical
+reference and must not be run as the current acceptance suite. In particular,
+USER.md / MEMORY.md / daily-file destinations, transcript recall and Active Memory
+requirements below do not describe the managed household wiki. Retiring this
+checklist does not enable those producers or change current privacy/grant policy.
+
+Use [managed memory](memory.md), the
+[memory skill](../skills/household-memory/SKILL.md), the
+[household acceptance campaign](household-assistant-implementation-plan.md) and
+[current status](current-status.md) for current source ownership, cases and actual
+evidence. The [reliability implementation](household-reliability-implementation.md)
+records current rollover/source-lifecycle changes.
+
+## Archived checklist
+
+### Earlier memory acceptance suite
 
 Run this after memory, model, routing, or GPU-serving changes. Use disposable
 markers and remove them afterward. A conversational claim is never proof.

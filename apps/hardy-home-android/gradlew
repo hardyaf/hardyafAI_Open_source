@@ -24,10 +24,10 @@ while [ -h "$app_path" ]; do
     esac
 done
 
-APP_HOME=$(cd "${app_path%/*}" >/dev/null 2>&1 && pwd -P) || exit
+APP_HOME=$(cd "$(dirname "$app_path")" >/dev/null 2>&1 && pwd -P) || exit
 APP_BASE_NAME=${0##*/}
 
-DEFAULT_JVM_OPTS='"-Xmx64m" "-Xms64m"'
+DEFAULT_JVM_OPTS='-Xmx64m -Xms64m'
 
 if [ -n "$JAVA_HOME" ]; then
     JAVACMD=$JAVA_HOME/bin/java

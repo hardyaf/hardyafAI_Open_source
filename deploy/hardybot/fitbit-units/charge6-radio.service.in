@@ -1,0 +1,28 @@
+[Unit]
+Description=Private physical Bluetooth bridge for Fitbit sync
+RequiresMountsFor=@RADIO_RUNTIME@ @PILOT_ROOT@/run
+After=local-fs.target
+[Service]
+Type=exec
+User=@SERVICE_USER@
+Group=@SERVICE_GROUP@
+UMask=0077
+ExecStartPre=@RADIO_RUNTIME@/venv/bin/python -I -B @RADIO_RUNTIME@/radio-preflight.py
+ExecStart=@RADIO_RUNTIME@/venv/bin/python -I -B -m bumble.apps.hci_bridge android-netsim:127.0.0.1:8877,mode=controller hci-socket:@HCI_INDEX@
+Environment=BUMBLE_LOGLEVEL=WARNING
+AmbientCapabilities=CAP_NET_ADMIN
+CapabilityBoundingSet=CAP_NET_ADMIN
+NoNewPrivileges=yes
+ProtectSystem=strict
+ProtectHome=read-only
+ReadWritePaths=@PILOT_ROOT@/run
+RestrictSUIDSGID=yes
+RestrictAddressFamilies=AF_UNIX AF_INET AF_INET6 AF_BLUETOOTH
+IPAddressDeny=any
+IPAddressAllow=localhost
+StandardOutput=null
+StandardError=journal
+Restart=no
+LimitCORE=0
+[Install]
+WantedBy=multi-user.target

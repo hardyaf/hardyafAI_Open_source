@@ -1,21 +1,18 @@
 package family.hardy.home.ui
 
-import androidx.compose.foundation.Canvas
+import android.graphics.Bitmap
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
-import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
-import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
-import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
@@ -24,45 +21,57 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
-import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.KeyboardActions
+import androidx.compose.foundation.text.selection.SelectionContainer
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
-import androidx.compose.material3.HorizontalDivider
+import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
+import androidx.compose.material3.TextButton
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.SideEffect
+import androidx.compose.runtime.key
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.graphics.StrokeCap
-import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.platform.LocalFocusManager
+import androidx.compose.ui.semantics.LiveRegionMode
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.liveRegion
+import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.tooling.preview.Preview
-import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import family.hardy.home.data.MockHouseholdRepository
+import family.hardy.home.model.ArtifactCard
 import family.hardy.home.model.ChatMessage
 import family.hardy.home.model.ConnectionMode
+import family.hardy.home.model.ConversationActivity
 import family.hardy.home.model.ConversationSummary
+import family.hardy.home.model.DictationPhase
+import family.hardy.home.model.DictationState
 import family.hardy.home.model.HouseholdCapability
 import family.hardy.home.model.HouseholdUiState
 import family.hardy.home.model.MessageRole
 import family.hardy.home.model.PersonStatus
 import family.hardy.home.model.PersonSummary
 import family.hardy.home.model.PromptPreset
+import family.hardy.home.model.chatImages
+import family.hardy.home.model.isConversationImage
 import family.hardy.home.ui.theme.BrandBlue
 import family.hardy.home.ui.theme.BrandBlueSoft
 import family.hardy.home.ui.theme.AppCanvas
@@ -81,17 +90,16 @@ fun HardyHomeScreen(
     state: HouseholdUiState,
     onDraftChange: (String) -> Unit,
     onSend: () -> Unit,
-    onNewConversation: () -> Unit,
-    onConversationSelected: (String) -> Unit,
-    onPresetSelected: (String) -> Unit,
-    onDrawerChange: (Boolean) -> Unit,
-    onDiagnosticsChange: (Boolean) -> Unit,
     onAttachment: () -> Unit,
     onVoiceInput: () -> Unit,
     onServerUrlChange: (String) -> Unit,
     onEnrollmentCodeChange: (String) -> Unit,
     onEnroll: () -> Unit,
     onRefresh: () -> Unit,
+    loadThumbnail: suspend (ArtifactCard) -> Bitmap? = { null },
+    onOpenArtifact: (ArtifactCard) -> Unit = {},
+    dictation: DictationState = DictationState(),
+    onDiscardDictation: () -> Unit = {},
 ) {
     Surface(modifier = Modifier.fillMaxSize(), color = AppCanvas) {
         if (state.capabilities.isEmpty() && state.connectionMode != ConnectionMode.Connected) {
@@ -102,54 +110,60 @@ fun HardyHomeScreen(
                 onEnroll = onEnroll,
                 onRefresh = onRefresh,
             )
-        } else BoxWithConstraints(
-            modifier = Modifier
-                .fillMaxSize()
-                .statusBarsPadding()
-                .navigationBarsPadding(),
-        ) {
-            val tablet = maxWidth >= 840.dp
-            Row(modifier = Modifier.fillMaxSize()) {
-                if (tablet) {
-                    HouseholdRail(
-                        state = state,
-                        width = 300.dp,
-                        onNewConversation = onNewConversation,
-                        onConversationSelected = onConversationSelected,
-                        onPresetSelected = onPresetSelected,
-                    )
-                }
-
-                HouseholdWorkspace(
-                    state = state,
-                    tablet = tablet,
-                    onMenu = { onDrawerChange(true) },
-                    onDraftChange = onDraftChange,
-                    onSend = onSend,
-                    onAttachment = onAttachment,
-                    onVoiceInput = onVoiceInput,
-                    onDiagnosticsChange = onDiagnosticsChange,
-                    modifier = Modifier.weight(1f),
-                )
-            }
-
-            if (!tablet && state.drawerOpen) {
+        } else {
+            Column(Modifier.fillMaxSize(), horizontalAlignment = Alignment.CenterHorizontally) {
                 Box(
-                    modifier = Modifier
-                        .fillMaxSize()
-                        .background(Color.Black.copy(alpha = 0.28f))
-                        .clickable { onDrawerChange(false) },
-                )
-                HouseholdRail(
-                    state = state,
-                    width = minOf(maxWidth * 0.88f, 360.dp),
-                    onNewConversation = onNewConversation,
-                    onConversationSelected = onConversationSelected,
-                    onPresetSelected = onPresetSelected,
-                    modifier = Modifier.fillMaxHeight(),
-                )
+                    modifier = Modifier.weight(1f).fillMaxWidth(),
+                    contentAlignment = Alignment.TopCenter,
+                ) {
+                    key(state.selectedConversationId) {
+                        val images = remember(state.artifacts, state.selectedConversationId) {
+                            state.artifacts.filter { it.isConversationImage(state.selectedConversationId) }.associateBy { it.id }
+                        }
+                        TranscriptPanel(state.messages, images, loadThumbnail, onOpenArtifact, Modifier.widthIn(max = 760.dp).fillMaxSize())
+                    }
+                }
+                ChatStatusRow(state)
+                if (dictation.message.isNotBlank()) {
+                    Row(
+                        modifier = Modifier.widthIn(max = 760.dp).fillMaxWidth().padding(horizontal = 16.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                    ) {
+                        Text(dictation.message, modifier = Modifier.weight(1f), style = MaterialTheme.typography.bodySmall)
+                        if (dictation.phase == DictationPhase.Saved) {
+                            TextButton(onClick = onVoiceInput) { Text("Transcribe") }
+                            TextButton(onClick = onDiscardDictation) { Text("Discard") }
+                        }
+                    }
+                }
+                Composer(state, onDraftChange, onSend, onAttachment, onVoiceInput, dictation)
             }
         }
+    }
+}
+
+@Composable
+private fun ChatStatusRow(state: HouseholdUiState) {
+    val activity = when {
+        state.connectionMode == ConnectionMode.Error -> null
+        state.sending -> "Sending…"
+        state.taskWorkspace.activity == ConversationActivity.Running -> "Jarvis is thinking…"
+        state.taskWorkspace.activity == ConversationActivity.Dispatching -> "Starting request…"
+        state.taskWorkspace.activity == ConversationActivity.Queued -> "Request queued"
+        else -> null
+    }
+    val label = state.statusNotice ?: activity ?: return
+    Row(
+        modifier = Modifier.widthIn(max = 760.dp).fillMaxWidth()
+            .padding(horizontal = 14.dp, vertical = 4.dp)
+            .semantics(mergeDescendants = true) { liveRegion = LiveRegionMode.Polite },
+        horizontalArrangement = Arrangement.spacedBy(8.dp),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        if (activity != null) {
+            CircularProgressIndicator(Modifier.size(14.dp), color = BrandBlue, strokeWidth = 2.dp)
+        }
+        Text(label, color = BrandBlue, style = MaterialTheme.typography.bodySmall)
     }
 }
 
@@ -176,7 +190,11 @@ private fun EnrollmentScreen(
             ) {
                 Text("Connect Hardy Home", style = MaterialTheme.typography.headlineSmall, fontWeight = FontWeight.Bold)
                 Text(
-                    "Run the Owner invitation command on hardybot, then enter the one-time code here. This phone creates its own protected signing key.",
+                    if (state.connectionMode == ConnectionMode.Error) {
+                        "Leave the code blank to retry your saved enrollment. Enter a new invitation to enroll again."
+                    } else {
+                        "Enter your household address and the one-time invitation for your profile. Each phone connects separately."
+                    },
                     color = MutedInk,
                 )
                 OutlinedTextField(
@@ -213,118 +231,8 @@ private fun EnrollmentScreen(
 }
 
 @Composable
-private fun HouseholdWorkspace(
-    state: HouseholdUiState,
-    tablet: Boolean,
-    onMenu: () -> Unit,
-    onDraftChange: (String) -> Unit,
-    onSend: () -> Unit,
-    onAttachment: () -> Unit,
-    onVoiceInput: () -> Unit,
-    onDiagnosticsChange: (Boolean) -> Unit,
-    modifier: Modifier = Modifier,
-) {
-    Column(modifier = modifier.fillMaxHeight()) {
-        AppHeader(
-            state = state,
-            showMenu = !tablet,
-            onMenu = onMenu,
-            onDiagnosticsChange = onDiagnosticsChange,
-        )
-        PersonStatusStrip(state)
-
-        val selected = state.conversations.firstOrNull { it.id == state.selectedConversationId }
-        Column(
-            modifier = Modifier
-                .padding(horizontal = if (tablet) 22.dp else 12.dp)
-                .padding(bottom = 10.dp)
-                .weight(1f),
-        ) {
-            TranscriptPanel(
-                title = selected?.title ?: "New conversation",
-                messages = state.messages,
-                modifier = Modifier.weight(1f),
-            )
-            Spacer(Modifier.height(10.dp))
-            if (state.diagnosticsVisible) {
-                DiagnosticsPanel(state)
-            } else if (state.selectedPresetId != null) {
-                PresetContextPanel(state)
-            }
-        }
-
-        state.statusNotice?.let { notice ->
-            Text(
-                text = notice,
-                color = BrandBlue,
-                fontSize = 13.sp,
-                modifier = Modifier.padding(horizontal = 18.dp, vertical = 4.dp),
-            )
-        }
-        Composer(
-            state = state,
-            onDraftChange = onDraftChange,
-            onSend = onSend,
-            onAttachment = onAttachment,
-            onVoiceInput = onVoiceInput,
-        )
-    }
-}
-
-@Composable
-private fun AppHeader(
-    state: HouseholdUiState,
-    showMenu: Boolean,
-    onMenu: () -> Unit,
-    onDiagnosticsChange: (Boolean) -> Unit,
-) {
-    Row(
-        verticalAlignment = Alignment.CenterVertically,
-        modifier = Modifier
-            .fillMaxWidth()
-            .padding(horizontal = 16.dp, vertical = 12.dp),
-    ) {
-        if (showMenu) {
-            Text(
-                text = "☰",
-                fontSize = 24.sp,
-                modifier = Modifier
-                    .clip(CircleShape)
-                    .clickable(onClick = onMenu)
-                    .padding(10.dp),
-            )
-            Spacer(Modifier.width(8.dp))
-        }
-        Column(modifier = Modifier.weight(1f)) {
-            Text("Hardy Home", fontWeight = FontWeight.Bold, fontSize = 21.sp)
-            Text(
-                "${state.maxActiveRuns} household turns can work at once",
-                color = MutedInk,
-                fontSize = 13.sp,
-            )
-        }
-        if (HouseholdCapability.ViewDiagnostics in state.capabilities) {
-            OutlinedButton(
-                onClick = { onDiagnosticsChange(!state.diagnosticsVisible) },
-                contentPadding = PaddingValues(horizontal = 12.dp, vertical = 8.dp),
-            ) {
-                Text(if (state.diagnosticsVisible) "Chat" else "Diagnostics")
-            }
-        }
-    }
-}
-
-@Composable
-private fun PersonStatusStrip(state: HouseholdUiState) {
-    val scroll = rememberScrollState()
-    Row(
-        horizontalArrangement = Arrangement.spacedBy(10.dp),
-        modifier = Modifier
-            .fillMaxWidth()
-            .horizontalScroll(scroll)
-            .padding(horizontal = 16.dp, vertical = 4.dp)
-            .padding(bottom = 10.dp),
-    ) {
+internal fun PersonStatusStrip(state: HouseholdUiState) {
+    Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
         state.people.forEach { person ->
             PersonStatusCard(person, state.currentProfile.id == person.id)
         }
@@ -340,7 +248,7 @@ private fun PersonStatusCard(person: PersonSummary, isCurrent: Boolean) {
             if (isCurrent) 2.dp else 1.dp,
             if (isCurrent) BrandBlue else OutlineSoft,
         ),
-        modifier = Modifier.width(178.dp),
+        modifier = Modifier.fillMaxWidth(),
     ) {
         Row(
             verticalAlignment = Alignment.CenterVertically,
@@ -374,42 +282,50 @@ private fun PersonStatusCard(person: PersonSummary, isCurrent: Boolean) {
 }
 
 @Composable
-private fun TranscriptPanel(title: String, messages: List<ChatMessage>, modifier: Modifier = Modifier) {
-    Card(
-        colors = CardDefaults.cardColors(containerColor = Color.White),
-        shape = panelShape,
-        modifier = modifier.fillMaxWidth(),
-    ) {
-        Column(modifier = Modifier.fillMaxSize()) {
-            Column(modifier = Modifier.padding(horizontal = 18.dp, vertical = 14.dp)) {
-                Text(title, fontWeight = FontWeight.Bold, fontSize = 18.sp)
-                Text("Private conversation · saved on Hardybot", color = MutedInk, fontSize = 12.sp)
+private fun TranscriptPanel(
+    messages: List<ChatMessage>,
+    authorizedImages: Map<String, ArtifactCard>,
+    loadThumbnail: suspend (ArtifactCard) -> Bitmap?,
+    onOpenArtifact: (ArtifactCard) -> Unit,
+    modifier: Modifier = Modifier,
+) {
+    if (messages.isEmpty()) {
+        Box(modifier = modifier, contentAlignment = Alignment.Center) {
+            Text("Start a conversation", color = MutedInk, style = MaterialTheme.typography.bodyLarge)
+        }
+    } else {
+        val listState = rememberLazyListState()
+        val newestMessage = remember { mutableStateOf<String?>(null) }
+        val latestId = messages.last().id
+        SideEffect {
+            if (latestId != newestMessage.value) {
+                val showingLatest = listState.firstVisibleItemIndex == 0 && listState.firstVisibleItemScrollOffset == 0
+                if (newestMessage.value == null || showingLatest) listState.requestScrollToItem(0)
+                newestMessage.value = latestId
             }
-            HorizontalDivider(color = OutlineSoft)
-            if (messages.isEmpty()) {
-                Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-                    Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                        Text("Start a conversation", fontWeight = FontWeight.SemiBold)
-                        Text("Ask something or choose a prompt flavor.", color = MutedInk)
-                    }
-                }
-            } else {
-                LazyColumn(
-                    verticalArrangement = Arrangement.spacedBy(12.dp),
-                    contentPadding = PaddingValues(16.dp),
-                    modifier = Modifier.fillMaxSize(),
-                ) {
-                    items(messages, key = { it.id }) { message ->
-                        MessageBubble(message)
-                    }
-                }
+        }
+        LazyColumn(
+            state = listState,
+            reverseLayout = true,
+            verticalArrangement = Arrangement.spacedBy(10.dp, Alignment.Bottom),
+            contentPadding = PaddingValues(horizontal = 12.dp, vertical = 12.dp),
+            modifier = modifier,
+        ) {
+            items(messages.asReversed(), key = { it.id }) { message ->
+                val images = remember(message, authorizedImages) { chatImages(message, authorizedImages) }
+                MessageBubble(message, images, loadThumbnail, onOpenArtifact)
             }
         }
     }
 }
 
 @Composable
-private fun MessageBubble(message: ChatMessage) {
+private fun MessageBubble(
+    message: ChatMessage,
+    images: List<ArtifactCard>,
+    loadThumbnail: suspend (ArtifactCard) -> Bitmap?,
+    onOpenArtifact: (ArtifactCard) -> Unit,
+) {
     val fromUser = message.role == MessageRole.User
     Row(
         horizontalArrangement = if (fromUser) Arrangement.End else Arrangement.Start,
@@ -417,113 +333,56 @@ private fun MessageBubble(message: ChatMessage) {
     ) {
         Column(
             horizontalAlignment = if (fromUser) Alignment.End else Alignment.Start,
-            modifier = Modifier.widthIn(max = 560.dp),
+            modifier = Modifier.widthIn(max = if (fromUser) 560.dp else 680.dp),
         ) {
-            Text(
-                text = message.text,
-                color = if (fromUser) Color.White else Ink,
-                lineHeight = 21.sp,
-                modifier = Modifier
-                    .clip(
-                        RoundedCornerShape(
-                            topStart = 18.dp,
-                            topEnd = 18.dp,
-                            bottomStart = if (fromUser) 18.dp else 4.dp,
-                            bottomEnd = if (fromUser) 4.dp else 18.dp,
-                        ),
-                    )
-                    .background(if (fromUser) BrandBlue else Color(0xFFF0F2F7))
-                    .padding(horizontal = 15.dp, vertical = 11.dp),
-            )
+            SelectionContainer {
+                Text(
+                    text = message.text,
+                    color = if (fromUser) Color.White else Ink,
+                    fontSize = 16.sp,
+                    lineHeight = 24.sp,
+                    modifier = Modifier
+                        .clip(
+                            RoundedCornerShape(
+                                topStart = 18.dp,
+                                topEnd = 18.dp,
+                                bottomStart = if (fromUser) 18.dp else 4.dp,
+                                bottomEnd = if (fromUser) 4.dp else 18.dp,
+                            ),
+                        )
+                        .background(if (fromUser) BrandBlue else Color.White)
+                        .padding(horizontal = 12.dp, vertical = 10.dp),
+                )
+            }
+            images.forEach { artifact ->
+                key(artifact.id) {
+                    ChatImageThumbnail(artifact, loadThumbnail, onOpenArtifact, Modifier.padding(top = 6.dp))
+                }
+            }
             Text(message.timeLabel, color = MutedInk, fontSize = 11.sp, modifier = Modifier.padding(top = 4.dp))
         }
     }
 }
 
 @Composable
-private fun PresetContextPanel(state: HouseholdUiState) {
-    val preset = state.presets.firstOrNull { it.id == state.selectedPresetId } ?: return
-    Card(
-        colors = CardDefaults.cardColors(containerColor = Color(0xFFEEF7F1)),
-        shape = panelShape,
-        modifier = Modifier
-            .fillMaxWidth()
-            .height(154.dp),
-    ) {
-        Row(modifier = Modifier.fillMaxSize()) {
-            if (preset.id == "ayso") {
-                SoccerField(
-                    modifier = Modifier
-                        .width(190.dp)
-                        .fillMaxHeight(),
-                )
-            }
-            Column(
-                verticalArrangement = Arrangement.Center,
-                modifier = Modifier
-                    .weight(1f)
-                    .fillMaxHeight()
-                    .padding(18.dp),
-            ) {
-                Text("Conversation flavor", color = Success, fontSize = 12.sp, fontWeight = FontWeight.Bold)
-                Text(preset.label, fontWeight = FontWeight.Bold, fontSize = 18.sp)
-                Text(preset.description, color = MutedInk, fontSize = 13.sp)
-                Spacer(Modifier.height(6.dp))
-                Text("The service supplies the maintained context; the phone sends only this preset ID.", fontSize = 12.sp)
-            }
-        }
-    }
-}
-
-@Composable
-private fun SoccerField(modifier: Modifier = Modifier) {
-    Canvas(modifier = modifier.background(Color(0xFF4D9B61))) {
-        val stroke = Stroke(width = 3f)
-        val inset = 16f
-        drawRect(
-            color = Color.White.copy(alpha = 0.86f),
-            topLeft = Offset(inset, inset),
-            size = androidx.compose.ui.geometry.Size(size.width - inset * 2, size.height - inset * 2),
-            style = stroke,
-        )
-        drawLine(Color.White.copy(alpha = 0.86f), Offset(size.width / 2, inset), Offset(size.width / 2, size.height - inset), strokeWidth = 3f, cap = StrokeCap.Round)
-        drawCircle(Color.White.copy(alpha = 0.86f), radius = size.minDimension * 0.16f, center = center, style = stroke)
-        drawCircle(Color.White, radius = 4f, center = center)
-    }
-}
-
-@Composable
-private fun DiagnosticsPanel(state: HouseholdUiState) {
+internal fun DiagnosticsPanel(state: HouseholdUiState) {
     Card(
         colors = CardDefaults.cardColors(containerColor = Color(0xFF172033)),
         shape = panelShape,
-        modifier = Modifier
-            .fillMaxWidth()
-            .height(174.dp),
+        modifier = Modifier.fillMaxWidth(),
     ) {
-        Row(
-            horizontalArrangement = Arrangement.spacedBy(18.dp),
-            modifier = Modifier
-                .fillMaxSize()
-                .padding(18.dp),
+        Column(
+            modifier = Modifier.padding(16.dp),
+            verticalArrangement = Arrangement.spacedBy(5.dp),
         ) {
-            Column(modifier = Modifier.weight(1f)) {
-                Text("Owner diagnostics", color = Color(0xFF9FB4FF), fontWeight = FontWeight.Bold)
-                Text(state.diagnostics.gateway, color = Color.White, modifier = Modifier.padding(top = 8.dp))
-                Text(state.diagnostics.model, color = Color.White)
-                Text(state.diagnostics.gpu, color = Color.White)
-                Text(state.diagnostics.memory, color = Color.White)
-            }
-            Column(horizontalAlignment = Alignment.End) {
-                Text("RUNS", color = Color(0xFF9EA9BD), fontSize = 11.sp)
-                Text(
-                    "${state.people.count { it.status == PersonStatus.Working }} / ${state.maxActiveRuns}",
-                    color = Color.White,
-                    fontWeight = FontWeight.Bold,
-                    fontSize = 30.sp,
-                )
-                Text("${state.people.count { it.status == PersonStatus.Queued }} queued", color = Color(0xFFFFC77D))
-            }
+            Text("Diagnostics", color = Color(0xFF9FB4FF), fontWeight = FontWeight.Bold)
+            Text(state.diagnostics.gateway, color = Color.White)
+            Text(state.diagnostics.model, color = Color.White)
+            Text(state.diagnostics.gpu, color = Color.White)
+            Text(state.diagnostics.memory, color = Color.White)
+            val running = state.people.count { it.status == PersonStatus.Working }
+            val queued = state.people.count { it.status == PersonStatus.Queued }
+            Text("$running / ${state.maxActiveRuns} running · $queued queued", color = Color(0xFFFFC77D))
         }
     }
 }
@@ -535,37 +394,48 @@ private fun Composer(
     onSend: () -> Unit,
     onAttachment: () -> Unit,
     onVoiceInput: () -> Unit,
+    dictation: DictationState,
 ) {
     val focusManager = LocalFocusManager.current
-    Surface(color = Color.White, shadowElevation = 10.dp) {
+    val writable = state.conversations.firstOrNull { it.id == state.selectedConversationId }?.canWrite != false
+    val canSend = !dictation.blocksSend && !state.sending && writable &&
+        (state.draft.isNotBlank() || state.attachments.isNotEmpty()) && HouseholdCapability.Chat in state.capabilities
+    Surface(color = Color.White, shadowElevation = 2.dp) {
         Row(
             verticalAlignment = Alignment.Bottom,
-            horizontalArrangement = Arrangement.spacedBy(8.dp),
+            horizontalArrangement = Arrangement.spacedBy(6.dp),
             modifier = Modifier
+                .widthIn(max = 760.dp)
                 .fillMaxWidth()
-                .padding(horizontal = 12.dp, vertical = 10.dp),
+                .padding(horizontal = 10.dp, vertical = 6.dp),
         ) {
-            ComposerButton("＋", "Add image", onAttachment)
+            if (HouseholdCapability.AttachImages in state.capabilities && !state.sending && writable && !dictation.blocksSend) ComposerButton("+", "Attach a photo or document", onAttachment)
             OutlinedTextField(
                 value = state.draft,
+                enabled = !state.sending && writable,
                 onValueChange = onDraftChange,
                 placeholder = { Text("Ask ${state.currentProfile.displayName}'s agent…") },
-                maxLines = 6,
+                maxLines = 5,
                 keyboardActions = KeyboardActions(onDone = {
-                    onSend()
+                    if (canSend) onSend()
                     focusManager.clearFocus()
                 }),
                 shape = RoundedCornerShape(18.dp),
                 modifier = Modifier.weight(1f),
             )
-            if (HouseholdCapability.VoiceInput in state.capabilities) {
-                ComposerButton("🎙", "Speak", onVoiceInput)
+            if (HouseholdCapability.VoiceInput in state.capabilities && writable && !state.sending) {
+                when (dictation.phase) {
+                    DictationPhase.Recording -> OutlinedButton(onClick = onVoiceInput) { Text("Stop") }
+                    DictationPhase.Idle -> ComposerButton("🎙", "Start recording", onVoiceInput)
+                    DictationPhase.Transcribing, DictationPhase.Saved -> Unit
+                }
             }
             Button(
                 onClick = onSend,
-                enabled = state.draft.isNotBlank(),
+                enabled = canSend,
                 shape = RoundedCornerShape(16.dp),
-                contentPadding = PaddingValues(horizontal = 16.dp, vertical = 16.dp),
+                modifier = Modifier.heightIn(min = 48.dp),
+                contentPadding = PaddingValues(horizontal = 12.dp),
                 colors = ButtonDefaults.buttonColors(containerColor = BrandBlue),
             ) {
                 Text("Send")
@@ -579,90 +449,67 @@ private fun ComposerButton(label: String, description: String, onClick: () -> Un
     OutlinedButton(
         onClick = onClick,
         shape = RoundedCornerShape(16.dp),
-        contentPadding = PaddingValues(horizontal = 13.dp, vertical = 16.dp),
-        modifier = Modifier.widthIn(min = 52.dp),
+        contentPadding = PaddingValues(0.dp),
+        modifier = Modifier.size(48.dp).semantics { contentDescription = description },
     ) {
         Text(label, fontSize = 18.sp)
     }
 }
 
 @Composable
-private fun HouseholdRail(
+internal fun ConversationDrawerContent(
     state: HouseholdUiState,
-    width: Dp,
     onNewConversation: () -> Unit,
+    onNewSharedConversation: () -> Unit,
     onConversationSelected: (String) -> Unit,
     onPresetSelected: (String) -> Unit,
-    modifier: Modifier = Modifier,
+    onEditConversation: (String) -> Unit,
 ) {
-    Surface(
-        color = Color.White,
-        shadowElevation = 12.dp,
-        modifier = modifier.width(width),
+    Button(
+        onClick = onNewConversation,
+        enabled = !state.sending,
+        modifier = Modifier.fillMaxWidth(),
+        shape = RoundedCornerShape(14.dp),
     ) {
-        LazyColumn(
-            contentPadding = PaddingValues(16.dp),
-            verticalArrangement = Arrangement.spacedBy(8.dp),
-            modifier = Modifier.fillMaxHeight(),
+        Text("New private chat")
+    }
+    if (state.currentProfile.role != "child") {
+        OutlinedButton(
+            onClick = onNewSharedConversation,
+            enabled = !state.sending,
+            modifier = Modifier.fillMaxWidth(),
+            shape = RoundedCornerShape(14.dp),
         ) {
-            item {
-                Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.padding(bottom = 8.dp)) {
-                    Box(
-                        contentAlignment = Alignment.Center,
-                        modifier = Modifier
-                            .size(46.dp)
-                            .clip(CircleShape)
-                            .background(Color(state.currentProfile.color)),
-                    ) {
-                        Text(state.currentProfile.initials, color = Color.White, fontWeight = FontWeight.Bold)
-                    }
-                    Spacer(Modifier.width(10.dp))
-                    Column {
-                        Text(state.currentProfile.displayName, fontWeight = FontWeight.Bold)
-                        Text("Personal household agent", color = MutedInk, fontSize = 12.sp)
-                    }
-                }
-            }
-            item {
-                Button(onClick = onNewConversation, modifier = Modifier.fillMaxWidth(), shape = RoundedCornerShape(14.dp)) {
-                    Text("＋  New conversation")
-                }
-            }
-            item { RailHeading("CONVERSATIONS") }
-            items(state.conversations, key = { it.id }) { conversation ->
-                ConversationRow(
-                    conversation = conversation,
-                    selected = conversation.id == state.selectedConversationId,
-                    onClick = { onConversationSelected(conversation.id) },
-                )
-            }
-            item {
-                Spacer(Modifier.height(8.dp))
-                RailHeading("PROMPT FLAVORS")
-            }
-            items(state.presets, key = { it.id }) { preset ->
-                PresetRow(
-                    preset = preset,
-                    selected = preset.id == state.selectedPresetId,
-                    onClick = { onPresetSelected(preset.id) },
-                )
-            }
-            item {
-                Spacer(Modifier.height(12.dp))
-                Text(
-                    "This app deliberately has no model, terminal, tool, file, or Gateway configuration screens.",
-                    color = MutedInk,
-                    fontSize = 11.sp,
-                    lineHeight = 16.sp,
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .clip(RoundedCornerShape(14.dp))
-                        .background(Color(0xFFF3F4F8))
-                        .padding(12.dp),
-                )
-            }
+            Text("New household chat")
         }
     }
+    RailHeading("CONVERSATIONS")
+    state.conversations.forEach { conversation ->
+        ConversationRow(
+            conversation = conversation,
+            selected = conversation.id == state.selectedConversationId,
+            enabled = !state.sending,
+            onClick = { onConversationSelected(conversation.id) },
+            onEdit = if (conversation.canWrite) { { onEditConversation(conversation.id) } } else null,
+        )
+    }
+    if (state.presets.isNotEmpty()) {
+        RailHeading("PROMPT FLAVORS")
+        state.presets.forEach { preset ->
+            PresetRow(
+                preset = preset,
+                selected = preset.id == state.selectedPresetId,
+                enabled = !state.sending,
+                onClick = { onPresetSelected(preset.id) },
+            )
+        }
+    }
+    Text(
+        "Your profile and private conversations belong to you. Shared conversations and household lists are visible to your household.",
+        color = MutedInk,
+        style = MaterialTheme.typography.bodySmall,
+        modifier = Modifier.padding(vertical = 8.dp),
+    )
 }
 
 @Composable
@@ -671,37 +518,48 @@ private fun RailHeading(text: String) {
 }
 
 @Composable
-private fun ConversationRow(conversation: ConversationSummary, selected: Boolean, onClick: () -> Unit) {
+private fun ConversationRow(
+    conversation: ConversationSummary,
+    selected: Boolean,
+    enabled: Boolean,
+    onClick: () -> Unit,
+    onEdit: (() -> Unit)?,
+) {
     Row(
         verticalAlignment = Alignment.CenterVertically,
         modifier = Modifier
             .fillMaxWidth()
             .clip(RoundedCornerShape(14.dp))
             .background(if (selected) BrandBlueSoft else Color.Transparent)
-            .clickable(onClick = onClick)
+            .clickable(enabled = enabled, onClick = onClick)
             .padding(12.dp),
     ) {
         Text(if (conversation.isShared) "⌂" else "◯", color = if (selected) BrandBlue else MutedInk)
         Spacer(Modifier.width(10.dp))
         Column(modifier = Modifier.weight(1f)) {
             Text(conversation.title, maxLines = 1, overflow = TextOverflow.Ellipsis, fontWeight = FontWeight.Medium)
+            if (conversation.tags.isNotEmpty()) {
+                Text(conversation.tags.joinToString(" · "), maxLines = 2, overflow = TextOverflow.Ellipsis,
+                    color = MutedInk, fontSize = 11.sp)
+            }
             Text(conversation.subtitle, maxLines = 1, overflow = TextOverflow.Ellipsis, color = MutedInk, fontSize = 11.sp)
         }
+        if (onEdit != null) TextButton(onClick = onEdit, enabled = enabled) { Text("Edit") }
     }
 }
 
 @Composable
-private fun PresetRow(preset: PromptPreset, selected: Boolean, onClick: () -> Unit) {
+private fun PresetRow(preset: PromptPreset, selected: Boolean, enabled: Boolean, onClick: () -> Unit) {
     Column(
         modifier = Modifier
             .fillMaxWidth()
             .clip(RoundedCornerShape(14.dp))
             .border(1.dp, if (selected) BrandBlue else OutlineSoft, RoundedCornerShape(14.dp))
-            .clickable(onClick = onClick)
+            .clickable(enabled = enabled, onClick = onClick)
             .padding(12.dp),
     ) {
         Text(preset.label, fontWeight = FontWeight.SemiBold)
-        Text(preset.description, color = MutedInk, fontSize = 11.sp, maxLines = 2, overflow = TextOverflow.Ellipsis)
+        Text(preset.description, color = MutedInk, style = MaterialTheme.typography.bodySmall)
     }
 }
 
@@ -721,19 +579,15 @@ private fun statusLabel(status: PersonStatus): String = when (status) {
     PersonStatus.Offline -> "Offline"
 }
 
+@Preview(widthDp = 390, heightDp = 800, showBackground = true)
 @Preview(widthDp = 1100, heightDp = 720, showBackground = true)
 @Composable
-private fun HardyHomeTabletPreview() {
+private fun HardyHomeChatPreview() {
     HardyHomeTheme {
         HardyHomeScreen(
             state = previewState,
             onDraftChange = {},
             onSend = {},
-            onNewConversation = {},
-            onConversationSelected = {},
-            onPresetSelected = {},
-            onDrawerChange = {},
-            onDiagnosticsChange = {},
             onAttachment = {},
             onVoiceInput = {},
             onServerUrlChange = {},

@@ -1,0 +1,927 @@
+--- /dev/null
++++ b/dist/context-budget-projection-hardy-20261125.mjs
+@@ -0,0 +1,283 @@
++import {createHash} from "node:crypto";
++import {l as serializeToolSearchControlResult} from "./code-mode-json-D7Gim6zD.mjs";
++import { resolveMaxTokensParam } from "@openclaw/ai/transports";
++import { r as getPluginToolMeta } from "./tool-metadata--ndgGyn8.mjs";
++// HardyAI scoped compatibility patch for stock OpenClaw 2026.9.8.
++// Generic, trusted tool-result presentation only. Authentication and receipts are untouched.
++const RESERVED = "__openclawContextProjectionV1";
++const DEDUP_RESERVED = "__openclawContextDedupV1";
++const sdkDeferredResults = new WeakSet();
++const trustedDeferredProjectionResults = new WeakSet();
++const trustedBuiltinProjectionDefinition = Symbol("native-context-projection-tool-definition");
++const MAX_FRAMEWORK_DETAILS_BYTES=8192;
++const forbidden = new Set(["__proto__", "prototype", "constructor"]);
++const record = value => value !== null && typeof value === "object" && !Array.isArray(value);
++function pathValid(path) {
++ return Array.isArray(path) && path.length > 0 && path.length <= 12 && path.every(key =>
++  typeof key === "string" && key.length > 0 && key.length <= 128 && !forbidden.has(key) ||
++  Number.isInteger(key) && key >= 0 && key <= 1024);
++}
++function parentAt(root, path) {
++ let value = root;
++ for (const key of path.slice(0,-1)) {
++  if (!record(value) && !Array.isArray(value) || !Object.hasOwn(value,key)) return;
++  value=value[key];
++ }
++ return record(value) || Array.isArray(value) ? value : undefined;
++}
++function at(root,path) { const parent=parentAt(root,path); return parent && Object.hasOwn(parent,path.at(-1)) ? parent[path.at(-1)] : undefined; }
++function safeJson(value,depth=0) {
++ if(depth>10)return false;
++ if(value===null||typeof value==="boolean")return true;
++ if(typeof value==="number")return Number.isFinite(value);
++ if(typeof value==="string")return value.length<=8192;
++ if(Array.isArray(value))return value.length<=64&&value.every(item=>safeJson(item,depth+1));
++ return record(value)&&Object.keys(value).length<=64&&Object.entries(value).every(([key,item])=>!forbidden.has(key)&&key.length<=128&&safeJson(item,depth+1));
++}
++function projectionDescriptor(message) {
++ if(message?.__openclawContextProjectionTrusted!==true)return;
++ const descriptor=message?.details?.[RESERVED];
++ if(!record(descriptor)||descriptor.version!==1||!Array.isArray(descriptor.blocks)||descriptor.blocks.length<1||descriptor.blocks.length>16)return;
++ const indexes=new Set();
++ for(const block of descriptor.blocks){
++  if(!record(block)||!Number.isInteger(block.index)||block.index<0||block.index>=message.content?.length||indexes.has(block.index))return;
++  indexes.add(block.index);
++  if(block.format==="deferred"){
++   if(!recipeValid(block.recipe,true))return;
++   continue;
++  }
++  if(block.format==="prepared"){
++   if(typeof block.text!=="string"||block.text.length>262144||block.preferredText!==undefined&&(typeof block.preferredText!=="string"||block.preferredText.length>262144)||!Number.isInteger(block.omittedChars)||block.omittedChars<1)return;
++   continue;
++  }
++  if(block.format!=="json"||!Array.isArray(block.omissions)||block.omissions.length<1||block.omissions.length>16)return;
++  for(const omission of block.omissions){
++   if(!record(omission)||!pathValid(omission.path)||!Array.isArray(omission.updates)||omission.updates.length>16||!record(omission.readback)||!safeJson(omission.readback))return;
++   if(typeof omission.readback.toolName!=="string"||!omission.readback.toolName||!record(omission.readback.args))return;
++   if(omission.readback.requires!==undefined&&(!Array.isArray(omission.readback.requires)||omission.readback.requires.length>16||!omission.readback.requires.every(item=>typeof item==="string"&&item.length>0&&item.length<=128)))return;
++   for(const update of omission.updates)if(!record(update)||!pathValid(update.path)||!safeJson(update.value)||record(update.value)||Array.isArray(update.value))return;
++  }
++ }
++ return descriptor;
++}
++function dedupDescriptor(message) {
++ const value=message?.__openclawContextProjectionTrusted===true?message.details?.[DEDUP_RESERVED]:undefined;
++ return record(value)&&value.version===1&&Array.isArray(value.blocks)&&value.blocks.length===1&&value.blocks[0]?.index===0&&
++  recipeValid(value.blocks[0].recipe,false)?value:undefined;
++}
++function frameworkWithinBound(value) { try{return Buffer.byteLength(JSON.stringify(value))<=MAX_FRAMEWORK_DETAILS_BYTES;}catch{return false;} }
++function hashText(text) { return createHash("sha256").update(text).digest("hex"); }
++function innerProjectionValid(value) {
++ return record(value)&&Array.isArray(value.blocks)&&value.blocks.length===1&&value.blocks[0]?.format==="json"&&
++  projectionDescriptor({__openclawContextProjectionTrusted:true,content:[{type:"text",text:""}],details:{[RESERVED]:value}})!==undefined;
++}
++function recipeValid(recipe,body) {
++ return record(recipe)&&recipe.version===1&&recipe.kind==="sdk-deferred-v1"&&
++  Object.keys(recipe).every(key=>["version","kind","sourceHash","prefix","suffix","innerProjection"].includes(key))&&
++  typeof recipe.sourceHash==="string"&&/^[a-f0-9]{64}$/.test(recipe.sourceHash)&&
++  typeof recipe.prefix==="string"&&typeof recipe.suffix==="string"&&frameworkWithinBound(recipe)&&
++  (body?innerProjectionValid(recipe.innerProjection):recipe.innerProjection===undefined);
++}
++function readDeferredOuter(message,recipe) {
++ const text=message.content?.[0]?.text;
++ if(message.content?.length!==1||message.content[0]?.type!=="text"||typeof text!=="string"||hashText(text)!==recipe.sourceHash||
++  !text.startsWith(recipe.prefix)||!text.endsWith(recipe.suffix))return;
++ const serialized=text.slice(recipe.prefix.length,recipe.suffix.length?text.length-recipe.suffix.length:undefined);
++ let outer;try{outer=JSON.parse(serialized);}catch{return;}
++ if(!record(outer)||!record(outer.tool)||!record(outer.result)||outer.result.content?.length!==1||outer.result.content[0]?.type!=="text"||
++  !record(outer.result.details)||typeof outer.result.content[0].text!=="string")return;
++ try{
++  if(serializeToolSearchControlResult(outer)!==serialized||outer.result.content[0].text!==JSON.stringify(outer.result.details))return;
++ }catch{return;}
++ return outer;
++}
++function readDeduplicatedDeferredOuter(message,recipe) {
++ const text=message.content?.[0]?.text;
++ if(message.content?.length!==1||typeof text!=="string"||!text.startsWith(recipe.prefix)||!text.endsWith(recipe.suffix))return;
++ const serialized=text.slice(recipe.prefix.length,recipe.suffix.length?text.length-recipe.suffix.length:undefined);
++ let outer;try{outer=JSON.parse(serialized);}catch{return;}
++ if(!record(outer)||!record(outer.result)||outer.result.content?.length!==1||outer.result.content[0]?.type!=="text"||
++  outer.result.details?.contextDelivery?.duplicateOf!=="content[0].text")return;
++ let details;try{details=JSON.parse(outer.result.content[0].text);}catch{return;}
++ const restored={...outer,result:{...outer.result,details}};
++ if(hashText(renderDeferredOuter(restored,recipe))!==recipe.sourceHash)return;
++ outer.result.details=details;return outer;
++}
++function renderDeferredOuter(outer,recipe) { return recipe.prefix+serializeToolSearchControlResult(outer)+recipe.suffix; }
++function deduplicatePreparedToolResult(message) {
++ const descriptor=projectionDescriptor(message),dedup=dedupDescriptor(message);
++ const blocks=descriptor?.blocks??dedup?.blocks;if(!blocks)return;
++ let changed=false;const content=message.content.slice();
++ for(const block of blocks){
++  const source=content[block.index];if(source?.type!=="text")continue;
++  let text;
++  if(block.recipe){
++   const outer=readDeferredOuter(message,block.recipe);if(!outer)continue;
++   outer.result.details={contextDelivery:{duplicateOf:"content[0].text",originalRetainedInTranscript:true}};
++   text=renderDeferredOuter(outer,block.recipe);
++  }else if(block.format==="prepared")text=block.preferredText;
++  if(typeof text!=="string"||source.text===text)continue;
++  content[block.index]={...source,text};changed=true;
++ }
++ return changed?{message:{...message,content},omittedChars:0}:undefined;
++}
++function hasDeclaredContextProjection(message) { return message?.__openclawContextProjectionTrusted===true && Object.hasOwn(message?.details??{},RESERVED); }
++function omitDeclaredToolResultBodies(message) {
++ if(message?.role!=="toolResult")return;
++ const descriptor=projectionDescriptor(message);if(!descriptor)return;
++ const content=message.content.slice();let omittedChars=0;let changed=false;
++ for(const block of descriptor.blocks){
++  const original=content[block.index];if(original?.type!=="text"||typeof original.text!=="string")return;
++  if(block.format==="deferred"){
++   const outer=readDeferredOuter(message,block.recipe)??readDeduplicatedDeferredOuter(message,block.recipe);if(!outer)continue;
++   const inner={role:"toolResult",content:outer.result.content,details:{[RESERVED]:block.recipe.innerProjection},__openclawContextProjectionTrusted:true};
++   const omitted=omitDeclaredToolResultBodies(inner);if(!omitted)continue;
++   outer.result.content=omitted.message.content;
++   outer.result.details={contextDelivery:{duplicateOf:"content[0].text",originalRetainedInTranscript:true}};
++   content[block.index]={...original,text:renderDeferredOuter(outer,block.recipe)};
++   omittedChars+=omitted.omittedChars;changed=true;continue;
++  }
++  if(block.format==="prepared"){
++   if(original.text===block.text)continue;
++   content[block.index]={...original,text:block.text};omittedChars+=block.omittedChars;changed=true;continue;
++  }
++  let value;try{value=JSON.parse(original.text);}catch{return;}
++  if(!record(value))return;
++  const notices=[];
++  for(const omission of block.omissions){
++   const text=at(value,omission.path);if(typeof text!=="string")return;
++   for(const update of omission.updates)if(!parentAt(value,update.path))return;
++   if(text.length===0)continue;
++   parentAt(value,omission.path)[omission.path.at(-1)]="";
++   for(const update of omission.updates)parentAt(value,update.path)[update.path.at(-1)]=update.value;
++   notices.push({path:omission.path,readback:omission.readback});
++   omittedChars+=text.length;changed=true;
++  }
++  if(notices.length){
++   value.contextDelivery={projected:true,complete:false,omitted:notices};
++   content[block.index]={...original,text:JSON.stringify(value)};
++  }
++ }
++ return changed?{message:{...message,content},omittedChars}:undefined;
++}
++
++/** Called only by the native deferred dispatcher at its structured trusted result boundary. */
++function prepareDeferredToolResultForModel(result, trustedDefinition=false, sdkOwned=false) {
++ if(!record(result)||!record(result.details))return {result};
++ const cleanDetails={...result.details};delete cleanDetails[RESERVED];delete cleanDetails[DEDUP_RESERVED];
++ const cleanResult={...result,details:cleanDetails};
++ const descriptor=trustedDefinition?projectionDescriptor({...result,role:"toolResult",__openclawContextProjectionTrusted:true}):undefined;
++ if(result.content?.length!==1||result.content[0]?.type!=="text")return {result:cleanResult};
++ let ownedText;try{ownedText=JSON.stringify(cleanDetails);}catch{return {result:cleanResult};}
++ // Require the exact compact serialization used by the native formatter.
++ // Parsed equality alone would accept duplicate keys and noncanonical numbers.
++ if(result.content[0].text!==ownedText)return {result:cleanResult};
++ const duplicateNotice={contextDelivery:{duplicateOf:"content[0].text",originalRetainedInTranscript:true}};
++ const deduplicatedResult=sdkOwned?{...cleanResult,details:duplicateNotice}:undefined;
++ if(!descriptor||descriptor.blocks.length!==1||descriptor.blocks[0].format!=="json"||descriptor.blocks[0].index!==0)return {result:cleanResult,deduplicatedResult};
++ const omitted=omitDeclaredToolResultBodies({...result,role:"toolResult",__openclawContextProjectionTrusted:true});
++ if(!omitted)return {result:cleanResult,deduplicatedResult};
++ return {result:cleanResult,innerProjection:descriptor,deduplicatedResult:{...cleanResult,details:duplicateNotice},
++  projectedResult:{...cleanResult,content:omitted.message.content,details:duplicateNotice},omittedChars:omitted.omittedChars};
++}
++function attachDeferredContextPresentation(details,sourceText,serialized,innerProjection,allowDedup) {
++ if(typeof sourceText!=="string"||typeof serialized!=="string")return details;
++ const at=sourceText.indexOf(serialized);if(at<0||sourceText.lastIndexOf(serialized)!==at)return details;
++ const recipe={version:1,kind:"sdk-deferred-v1",sourceHash:hashText(sourceText),prefix:sourceText.slice(0,at),suffix:sourceText.slice(at+serialized.length)};
++ const test={role:"toolResult",content:[{type:"text",text:sourceText}],details:{},__openclawContextProjectionTrusted:true};
++ if(!readDeferredOuter(test,recipe))return details;
++ let next={...details};
++ if(innerProjection&&innerProjectionValid(innerProjection))next[RESERVED]={version:1,blocks:[{index:0,format:"deferred",recipe:{...recipe,innerProjection}}]};
++ else if(allowDedup)next[DEDUP_RESERVED]={version:1,blocks:[{index:0,recipe}]};
++ return frameworkWithinBound({[RESERVED]:next[RESERVED],[DEDUP_RESERVED]:next[DEDUP_RESERVED]})?next:details;
++}
++function trustedContextPresentationDetails(message) {
++ if(message?.__openclawContextProjectionTrusted!==true)return;
++ const projection=projectionDescriptor(message),dedup=dedupDescriptor(message),out={};
++ if(projection)out[RESERVED]=projection;if(dedup)out[DEDUP_RESERVED]=dedup;
++ if(!Object.keys(out).length||!frameworkWithinBound(out))return;
++ return out;
++}
++function prepareContextPresentationAfterText(message,previousContent,prepare) {
++ const previous={...message,content:previousContent};
++ const metadata=trustedContextPresentationDetails(previous);if(!metadata)return false;
++ const next={};
++ const prepareJson=value=>{try{return JSON.parse(prepare({type:"text",text:JSON.stringify(value)}).text);}catch{return;}};
++ for(const [key,value] of Object.entries(metadata)){
++  let prepared;
++  if(key===RESERVED&&value.blocks.every(block=>block.format==="json"))prepared=prepareJson(value);
++  else{
++   prepared=JSON.parse(JSON.stringify(value));
++   for(const block of prepared.blocks){
++    if(block.recipe){
++     if(!readDeferredOuter(previous,block.recipe)){prepared=undefined;break;}
++     if(block.recipe.innerProjection){
++      const inner=prepareJson(block.recipe.innerProjection);
++      if(!innerProjectionValid(inner)){prepared=undefined;break;}
++      block.recipe.innerProjection=inner;
++     }
++     block.recipe.sourceHash=hashText(message.content?.[block.index]?.text??"");
++     if(!readDeferredOuter(message,block.recipe)){prepared=undefined;break;}
++    }else{
++     if(typeof block.text==="string")block.text=prepare({type:"text",text:block.text}).text;
++     if(typeof block.preferredText==="string")block.preferredText=prepare({type:"text",text:block.preferredText}).text;
++    }
++   }
++  }
++  if(prepared)next[key]=prepared;
++ }
++ const details={...message.details};delete details[RESERVED];delete details[DEDUP_RESERVED];Object.assign(details,next);
++ const valid=trustedContextPresentationDetails({...message,details});
++ if(!valid){delete details[RESERVED];delete details[DEDUP_RESERVED];}
++ const changed=JSON.stringify(details)!==JSON.stringify(message.details);
++ if(changed)message.details=details;return changed;
++}
++function attachPreparedContextDedup(details,text) {
++ return {...details,[DEDUP_RESERVED]:{version:1,blocks:[{index:0,text}]}};
++}
++function attachPreparedContextProjection(details,text,omittedChars,preferredText) {
++ return {...details,[RESERVED]:{version:1,blocks:[{index:0,format:"prepared",text,omittedChars,...preferredText!==undefined?{preferredText}:{}}]}};
++}
++
++
++function markSdkProjectionToolDefinition(tool) { tool[trustedBuiltinProjectionDefinition]=true;return tool; }
++function copyNativeProjectionToolDefinition(source,target) {
++ const trusted=source?.name===target?.name&&isTrustedProjectionToolDefinition(source);
++ delete target.contextProjectionV1;delete target[trustedBuiltinProjectionDefinition];
++ if(trusted){target.contextProjectionV1=true;markSdkProjectionToolDefinition(target);}
++ return target;
++}
++function markResolvedProjectionResult(result,tool) { sdkDeferredResults.add(result);if(isTrustedProjectionToolDefinition(tool))trustedDeferredProjectionResults.add(result);return result; }
++function isSdkOwnedDeferredResult(result) { return sdkDeferredResults.has(result); }
++function isTrustedResolvedProjectionResult(result) { return trustedDeferredProjectionResults.has(result); }
++function isTrustedProjectionToolDefinition(tool) {
++ if(tool?.contextProjectionV1!==true)return false;
++ if(tool[trustedBuiltinProjectionDefinition]===true)return true;
++ const owner=getPluginToolMeta(tool);
++ return Boolean(owner?.pluginId)&&owner.pluginId!=="bundle-mcp"&&!owner.mcp;
++}
++/** Native message construction owns this marker; tool-return root fields are never copied. */
++function stampNativeProjectionProvenance(message,tools) {
++ if(message?.role!=="toolResult")return false;
++ const trusted=tools.some(tool=>tool.name===message.toolName&&isTrustedProjectionToolDefinition(tool));
++ const previous=message.__openclawContextProjectionTrusted;
++ if(trusted)message.__openclawContextProjectionTrusted=true;
++ else delete message.__openclawContextProjectionTrusted;
++ return previous!==message.__openclawContextProjectionTrusted;
++}
++
++
++/** Reserve the native resolved output contract; never changes provider output options. */
++function resolveNativeReplyReserve(params) {
++ const positive=value=>typeof value==="number"&&Number.isFinite(value)&&value>0?Math.floor(value):undefined;
++ const call=positive(resolveMaxTokensParam(params.options??{}));
++ if(call!==undefined)return {replyTokens:call,replyReserveSource:"call-options.maxTokens",replyReserveAssumed:false};
++ const configured=positive(resolveMaxTokensParam(params.extraParams??{}));
++ if(configured!==undefined)return {replyTokens:configured,replyReserveSource:"resolved-extra.maxTokens",replyReserveAssumed:false};
++ const native=positive(params.model?.params?.num_predict);
++ if(native!==undefined&&(params.model?.provider==="ollama"||params.model?.api==="ollama"))return {replyTokens:native,replyReserveSource:"model.params.num_predict",replyReserveAssumed:false};
++ const declared=positive(params.model?.maxTokens);
++ return {replyTokens:declared??0,replyReserveSource:declared?"declared-model-fallback":"unknown",replyReserveAssumed:true};
++}
++
++export {attachDeferredContextPresentation,trustedContextPresentationDetails,prepareContextPresentationAfterText,copyNativeProjectionToolDefinition,attachPreparedContextDedup,isSdkOwnedDeferredResult,resolveNativeReplyReserve,deduplicatePreparedToolResult,markResolvedProjectionResult,isTrustedResolvedProjectionResult,markSdkProjectionToolDefinition,isTrustedProjectionToolDefinition,stampNativeProjectionProvenance,hasDeclaredContextProjection,omitDeclaredToolResultBodies,prepareDeferredToolResultForModel,attachPreparedContextProjection};
+--- a/dist/resource-loader-CFBQ8DO5.mjs
++++ b/dist/resource-loader-CFBQ8DO5.mjs
+@@ -1,3 +1,5 @@
++import {prepareContextPresentationAfterText} from "./context-budget-projection-hardy-20261125.mjs";
++import { resolveNativeReplyReserve, stampNativeProjectionProvenance } from "./context-budget-projection-hardy-20261125.mjs";
+ import { r as __exportAll } from "./rolldown-runtime-Dr7-SnC6.mjs";
+ import { l as normalizeOptionalString } from "./string-coerce-6kR-86XC.mjs";
+ import { C as parseStrictNonNegativeInteger, j as resolveIntegerOption, v as parseDateFirstTimestampMs } from "./number-coercion-Dq1l5muL.mjs";
+@@ -3360,16 +3362,18 @@
+ function setSessionToolTextPreparer(sessionManager, prepare) {
+ 	preparers.set(sessionManager, prepare);
+ }
+-function prepareSessionToolResult(sessionManager, event) {
++function prepareSessionToolResult(sessionManager, event, tools = []) {
+ 	if (event.type !== "message_end" || event.message.role !== "toolResult") return false;
+ 	const prepare = preparers.get(sessionManager) ?? prepareModelVisibleToolTextBlock;
+-	let changed = false;
++ let changed = stampNativeProjectionProvenance(event.message,tools);
++ const previousContent=event.message.content;
+ 	event.message.content = event.message.content.map((block) => {
+ 		if (block.type !== "text") return block;
+ 		const prepared = prepare(block);
+ 		changed ||= prepared.text !== block.text;
+ 		return prepared;
+ 	});
++ changed=prepareContextPresentationAfterText(event.message,previousContent,prepare)||changed;
+ 	return changed;
+ }
+ //#endregion
+@@ -3734,7 +3738,7 @@
+ 			}
+ 			if (this.eventMayWriteSession(event)) {
+ 				await this.runWithSessionWriteSettlement(async () => await this.handleAgentEventUnlocked(event));
+-				prepareSessionToolResult(this.sessionManager, event);
++				prepareSessionToolResult(this.sessionManager, event, this.agent.state.tools);
+ 				return;
+ 			}
+ 			await this.handleAgentEventUnlocked(event);
+@@ -3881,7 +3885,7 @@
+ 		const sourceSlots = event.type === "message_end" ? takeCodeModeResponseSource(event.message) : void 0;
+ 		let messageChanged = false;
+ 		if (event.type !== "message_update" || this.currentExtensionRunner.hasHandlers(event.type)) messageChanged = await this.emitExtensionEvent(event);
+-		messageChanged = prepareSessionToolResult(this.sessionManager, event) || messageChanged;
++		messageChanged = prepareSessionToolResult(this.sessionManager, event, this.agent.state.tools) || messageChanged;
+ 		const publishAfterPersistence = event.type === "message_end" && event.message.role === "user";
+ 		if (event.type === "agent_end") await this.emitTerminal({
+ 			...event,
+@@ -3889,7 +3893,7 @@
+ 			...this.lastAssistantEntryId ? { assistantEntryId: this.lastAssistantEntryId } : {}
+ 		});
+ 		else if (!publishAfterPersistence) this.emit(event);
+-		messageChanged = prepareSessionToolResult(this.sessionManager, event) || messageChanged;
++		messageChanged = prepareSessionToolResult(this.sessionManager, event, this.agent.state.tools) || messageChanged;
+ 		if (event.type === "message_end") {
+ 			if (event.message.role === "custom") {
+ 				const message = event.message;
+@@ -4280,7 +4284,10 @@
+ 	}
+ 	return {
+ 		contextWindow: params.contextWindow,
+-		reserveTokens: params.reserveTokens,
++  reserveTokens: params.reserveTokens,
++  replyTokens:typeof params.replyTokens==="number"&&Number.isFinite(params.replyTokens)&&params.replyTokens>0?Math.floor(params.replyTokens):0,
++  replyReserveSource:params.replyReserveSource??"unspecified",
++  replyReserveAssumed:params.replyReserveAssumed!==false,
+ 		fixedTokens,
+ 		pendingUserIdempotencyKey: params.pendingUserIdempotencyKey,
+ 		pendingTokens: pendingUserTokens + additionalContextTokens,
+@@ -4316,7 +4323,7 @@
+ 	return budget.fixedTokens + budget.pendingTokens + estimateCompactionHistoryTokens(messages, budget);
+ }
+ function resolveCompactionRetentionBudget(budget, messages) {
+-	const preferredTokens = budget.contextWindow - budget.reserveTokens - budget.fixedTokens - budget.pendingTokens;
++	const preferredTokens = budget.contextWindow - Math.max(budget.reserveTokens,budget.replyTokens??0) - budget.fixedTokens - budget.pendingTokens;
+ 	return {
+ 		maxTokens: preferredTokens <= 0 ? estimateCompactionHistoryTokens(messages, budget) - 1 : preferredTokens,
+ 		reserveTokens: estimateCompactionHistoryTokens([{
+@@ -4327,6 +4334,75 @@
+ 		}])
+ 	};
+ }
++
++/** Existing debug sink receives numeric accounting only; no prompt or identity data. */
++function debugNativeRequestBudget(phase,messages,budget) {
++ if(!["request","summary_request","compaction_prepare","compaction_projected","compaction_commit"].includes(phase))return;
++ const retention=resolveCompactionRetentionBudget(budget,messages);
++ const numbers={window:budget.contextWindow,fixed:budget.fixedTokens,pending:budget.pendingTokens,
++  reserve:budget.reserveTokens,reply:budget.replyTokens??0,input:estimateCompactedRequestTokens(messages,budget),
++  retentionTarget:Math.max(0,retention.maxTokens-retention.reserveTokens)};
++ if(!Object.values(numbers).every(value=>typeof value==="number"&&Number.isFinite(value)&&value>=0))return;
++ const record={phase,...numbers};
++ log.debug("[native-context-budget] "+JSON.stringify(record));
++ return record;
++}
++
++/** Pending-input identity is independent of additive token overlap accounting. */
++function withUnprocessedNativeUserIdentity(budget,previous) {
++ return previous?.pendingUserIdempotencyKey?{...budget,pendingUserIdempotencyKey:previous.pendingUserIdempotencyKey}:budget;
++}
++function resolveNativePendingEntryIndex(entries,pendingUserEntryId,requestBudget) {
++ const pendingUserIdempotencyKey=requestBudget?.pendingUserIdempotencyKey;
++ const index=pendingUserEntryId||pendingUserIdempotencyKey?entries.findLastIndex(entry=>entry.type==="message"&&entry.message.role==="user"&&
++  (pendingUserEntryId?entry.id===pendingUserEntryId:"idempotencyKey" in entry.message&&entry.message.idempotencyKey===pendingUserIdempotencyKey)):-1;
++ if(pendingUserEntryId&&index<0)throw new Error("Compaction cannot find the admitted pending user request.");
++ return index;
++}
++/** Stock request accounting and transcript-backed views; no second budget/store. */
++async function projectNativeBudgetEntries(params) {
++ params.assertCurrent?.();
++ const projection=await import("./tool-result-truncation-CKAInP-Z.mjs");
++ const stateModule=await import("./session-prompt-state-BmVcmgqy.mjs");
++ const state=params.projectionState??stateModule.i(params.sessionManager.getSessionId()).toolResults;
++ if(state.frozen.size===0)projection.o(state,params.sessionManager.getBranch());
++ let branch=projection.projectFrozenNativeToolResultBranch(params.entries,state);
++ let changed=0,omittedChars=0,targetTokens;
++ const currentMessages=buildSessionContext(branch).messages;
++ const capacityPressure=params.requestBudget&&estimateCompactedRequestTokens(currentMessages,params.requestBudget)+(params.requestBudget.replyTokens??0)>params.requestBudget.contextWindow;
++ if(params.requestBudget&&(params.applyProjection===true||capacityPressure&&!params.prepareOnly)){
++  const messages=currentMessages;
++  const retention=resolveCompactionRetentionBudget(params.requestBudget,messages);
++  targetTokens=Math.max(0,retention.maxTokens-retention.reserveTokens);
++  const pendingIndex=resolveNativePendingEntryIndex(branch,undefined,params.requestBudget);
++  const preserveFromEntryId=params.preserveFromEntryId??branch[pendingIndex]?.id;
++  const firstIndex=findCutPoint(branch,0,branch.length,0,
++   preserveFromEntryId?{preserveFromEntryId}:undefined).firstKeptEntryIndex;
++  const fitted=projection.projectNativeToolResultBranch({
++   branch,projectionState:state,firstIndex,targetTokens,
++   estimate:entries=>estimateCompactionHistoryTokens(buildSessionContext(entries).messages,params.requestBudget)
++  });
++  branch=fitted.branch;changed=fitted.changed;omittedChars=fitted.omittedChars;
++  if(changed){
++   const persist=()=>withSessionManagerWrite(params.sessionManager,()=>{
++    params.assertCurrent?.();
++    stateModule.c(state,(type,data)=>params.sessionManager.appendCustomEntry(type,data));
++    params.assertCurrent?.();
++   });
++   if(params.withOwnedWrite)await params.withOwnedWrite(persist);else await persist();
++  }
++ }
++ params.assertCurrent?.();
++ return {entries:branch,projectionState:state,changed,omittedChars,targetTokens,
++  messages:buildSessionContext(branch).messages,
++  estimatedTokens:params.requestBudget?estimateCompactedRequestTokens(buildSessionContext(branch).messages,params.requestBudget):undefined};
++}
++async function projectNativeBudgetMessages(params) {
++ const entries=params.messages.map((message,index)=>({type:"message",id:"native-budget-view-"+index,message}));
++ const result=await projectNativeBudgetEntries({...params,entries});
++ return {...result,messages:result.entries.map(entry=>entry.message)};
++}
++
+ //#endregion
+ //#region src/agents/sessions/prompt-templates.ts
+ /**
+@@ -4555,6 +4631,7 @@
+ 	*/
+ 	async prompt(text, options) {
+ 		const preparedCompactionBudget = takePromptCompactionRequestBudget(options);
++  this.currentNativeCompactionRequestBudget=preparedCompactionBudget;
+ 		const expandPromptTemplates = options?.expandPromptTemplates ?? true;
+ 		const preflightResult = options?.preflightResult;
+ 		let messages;
+@@ -4602,6 +4679,7 @@
+ 				}).pendingContextMessages;
+ 				await this.checkCompaction(lastAssistant, false, preparedCompactionBudget ? withCompactionQueuedContext(preparedCompactionBudget, pendingQueuedContextMessages) : typeof contextWindow === "number" && Number.isFinite(contextWindow) && contextWindow > 0 ? createCompactionRequestBudget({
+ 					contextWindow,
++     ...resolveNativeReplyReserve({model:this.model}),
+ 					reserveTokens: this.settingsManager.getCompactionSettings().reserveTokens,
+ 					systemPrompt: this.agent.state.systemPrompt,
+ 					tools: this.agent.state.tools,
+@@ -5328,25 +5406,45 @@
+ 				reason: compactionErrorMessage(error, "Compaction authentication failed")
+ 			};
+ 		}
+-		const pathEntries = this.sessionManager.getBranch();
+-		const requestBudget = options.requestBudget;
+-		const pendingUserIdempotencyKey = requestBudget?.pendingTokens ? requestBudget.pendingUserIdempotencyKey : void 0;
+-		const pendingEntryIndex = options.pendingUserEntryId || pendingUserIdempotencyKey ? pathEntries.findLastIndex((entry) => entry.type === "message" && entry.message.role === "user" && (options.pendingUserEntryId ? entry.id === options.pendingUserEntryId : "idempotencyKey" in entry.message && entry.message.idempotencyKey === pendingUserIdempotencyKey)) : -1;
+-		if (options.pendingUserEntryId && pendingEntryIndex < 0) throw new Error("Compaction cannot find the admitted pending user request.");
+-		const retention = requestBudget ? resolveCompactionRetentionBudget(requestBudget, buildSessionContext(pathEntries).messages) : void 0;
+-		const requestTokenLimit = requestBudget && retention ? requestBudget.fixedTokens + requestBudget.pendingTokens + retention.maxTokens : void 0;
++  const requestBudget = options.requestBudget;
++  let pathEntries = this.sessionManager.getBranch();
++  const pendingEntryIndex=resolveNativePendingEntryIndex(pathEntries,options.pendingUserEntryId,requestBudget);
++  let budgetProjection = await projectNativeBudgetEntries({
++   sessionManager:this.sessionManager,entries:pathEntries,requestBudget,applyProjection:false,prepareOnly:true,
++   preserveFromEntryId:pathEntries[pendingEntryIndex]?.id,
++   assertCurrent:()=>{options.signal.throwIfAborted();assertContextReplacementActive?.();}
++  });
++  pathEntries = budgetProjection.entries;
++  const nativeProjectionOwner = await import("./tool-result-truncation-CKAInP-Z.mjs");
++		let retention = requestBudget ? resolveCompactionRetentionBudget(requestBudget, buildSessionContext(pathEntries).messages) : void 0;
++  if(requestBudget)debugNativeRequestBudget("compaction_prepare",buildSessionContext(pathEntries).messages,requestBudget);
++		let requestTokenLimit = requestBudget && retention ? requestBudget.fixedTokens + requestBudget.pendingTokens + retention.maxTokens : void 0;
+ 		let preparation;
+ 		if (isManual && !options.requestState && !requestBudget && pendingEntryIndex < 0) {
+ 			const manualPreflight = preflightManualSessionCompaction(pathEntries, options.settings);
+ 			if (!manualPreflight.compactable) throw new Error(manualPreflight.reason);
+ 			preparation = manualPreflight.preparation;
+-		} else preparation = unwrapCoreResult(prepareCompaction$1(pathEntries, options.settings, options.requestState, requestBudget || pendingEntryIndex >= 0 ? {
+-			preserveFromEntryId: pathEntries[pendingEntryIndex]?.id,
+-			...requestBudget && retention ? { budget: {
+-				...retention,
+-				estimateTokens: (message) => estimateCompactionHistoryTokens([message], requestBudget)
+-			} } : {}
+-		} : void 0));
++  } else {
++   const prepareCurrent=()=>unwrapCoreResult(prepareCompaction$1(pathEntries,options.settings,options.requestState,requestBudget||pendingEntryIndex>=0?{
++    preserveFromEntryId:pathEntries[pendingEntryIndex]?.id,
++    ...requestBudget&&retention?{budget:{...retention,estimateTokens:message=>estimateCompactionHistoryTokens([message],requestBudget)}}:{}
++   }:undefined));
++   try{preparation=prepareCurrent();}
++   catch(error){
++    if(!requestBudget||!String(error?.message??"").includes("No complete recent message fits"))throw error;
++    budgetProjection=await projectNativeBudgetEntries({
++     sessionManager:this.sessionManager,entries:this.sessionManager.getBranch(),requestBudget,applyProjection:true,
++     preserveFromEntryId:pathEntries[pendingEntryIndex]?.id,
++     assertCurrent:()=>{options.signal.throwIfAborted();assertContextReplacementActive?.();}
++    });
++    if(!budgetProjection.changed)throw error;
++    pathEntries=budgetProjection.entries;
++    retention=resolveCompactionRetentionBudget(requestBudget,buildSessionContext(pathEntries).messages);
++     debugNativeRequestBudget("compaction_projected",buildSessionContext(pathEntries).messages,requestBudget);
++    requestTokenLimit=requestBudget.fixedTokens+requestBudget.pendingTokens+retention.maxTokens;
++    preparation=prepareCurrent();
++   }
++  }
+ 		if (!preparation) return {
+ 			status: "skipped",
+ 			reason: "Nothing to compact (session too small)"
+@@ -5414,13 +5512,16 @@
+ 			if (options.signal.aborted || currentController?.signal !== options.signal || this.assertContextReplacementActive !== assertContextReplacementActive || this.onContextReplaced !== onContextReplaced) return;
+ 			assertContextReplacementActive?.();
+ 			const replacementMessages = sanitizeCompactionReplayMessages(projectReplacement(completedCompaction, completedCompaction.summary));
++    if(requestBudget)debugNativeRequestBudget("compaction_commit",replacementMessages,requestBudget);
+ 			const tokensAfter = requestBudget ? estimateCompactedRequestTokens(replacementMessages, {
+ 				...requestBudget,
+ 				pendingTokens: 0
+ 			}) : estimateContextTokens(replacementMessages).tokens;
+ 			const entryId = this.sessionManager.appendCompaction(completedCompaction.summary, completedCompaction.firstKeptEntryId, completedCompaction.tokensBefore, completedCompaction.details, fromExtension, { itemId: options.itemId }, tokensAfter);
+-			const sessionContext = this.sessionManager.buildSessionContext();
+-			this.agent.state.messages = sanitizeCompactionReplayMessages(sessionContext.messages);
++   const sessionContext = this.sessionManager.buildSessionContext();
++   // Replay the same hash-bound view used by the native cut point, not raw bulky bodies.
++   const replayEntries=nativeProjectionOwner.projectFrozenNativeToolResultBranch(this.sessionManager.getBranch(),budgetProjection.projectionState);
++   this.agent.state.messages = sanitizeCompactionReplayMessages(buildSessionContext(replayEntries).messages);
+ 			onContextReplaced?.(tokensAfter, completedCompaction.tokensBefore);
+ 			return {
+ 				entryId,
+@@ -5453,6 +5554,7 @@
+ 	* @param skipAbortedCheck If false, include aborted messages (for pre-prompt check). Default: true
+ 	*/
+ 	async checkCompaction(assistantMessage, skipAbortedCheck = true, requestBudget) {
++  requestBudget??=this.currentNativeCompactionRequestBudget;
+ 		const settings = this.settingsManager.getCompactionSettings();
+ 		if (!settings.enabled) return false;
+ 		if (skipAbortedCheck && assistantMessage.stopReason === "aborted") return false;
+@@ -5512,6 +5614,7 @@
+ 				mode: "auto",
+ 				requestBudget: requestBudget ?? (typeof contextWindow === "number" && Number.isFinite(contextWindow) && contextWindow > 0 ? createCompactionRequestBudget({
+ 					contextWindow,
++     ...resolveNativeReplyReserve({model:this.model}),
+ 					reserveTokens: settings.reserveTokens,
+ 					systemPrompt: this.agent.state.systemPrompt,
+ 					tools: this.agent.state.tools
+@@ -6662,4 +6765,4 @@
+ 	}
+ };
+ //#endregion
+-export { resolveModelScope as A, formatNoModelsAvailableMessage as B, wrapRegisteredTools as C, findInitialModel as D, findExactModelReferenceMatch as E, prepareCompaction as F, sanitizeCompactionReplayMessages as G, takeRuntimeUserTurnTranscriptContext as H, collectEntriesForBranchSummary as I, estimateJsonPayloadTokenPressure as J, stripStaleAssistantUsageBeforeLatestCompaction as K, generateBranchSummary as L, DEFAULT_THINKING_LEVEL as M, compact as N, parseModelPattern as O, generateSummary as P, estimateToolSchemaTokens as Q, executeBashWithOperations as R, loadExtensionFromFactory as S, DefaultPackageManager as T, takeRuntimeUserTurnTranscriptRecorder as U, attachRuntimeUserTurnTranscriptRecorder as V, withRuntimeUserTurnTranscriptRecorder as W, estimateRenderedPromptTokens as X, estimateMessageTokenPressure as Y, estimateStringTokenPressure as Z, setSessionToolTextPreparer as _, recordSessionModelUsage as a, ExtensionRunner as b, agentSessionQueuePromptContext as c, createCompactionRequestBudget as d, estimateCompactedRequestTokens as f, subscribeSteeringMessagePersistenceFailure as g, getSteeringMessageIdentity as h, agentSessionSetContextReplacementHook as i, restoreModelFromSession as j, resolveCliModel as k, agentSessionSetPromptPreparation as l, loadSkills as m, AgentSession as n, setSessionModelUsageSink as o, formatSkillsForPrompt as p, resolveCompactionInstructions as q, agentSessionAutomaticCompaction as r, preflightManualSessionCompaction as s, DefaultResourceLoader as t, attachPromptCompactionRequestBudget as u, createSessionManagerRuntimeRegistry as v, SettingsManager as w, createExtensionRuntime as x, retireQueuedUserMessage as y, createEventBus as z };
++export { debugNativeRequestBudget, withUnprocessedNativeUserIdentity, projectNativeBudgetEntries, projectNativeBudgetMessages, resolveModelScope as A, formatNoModelsAvailableMessage as B, wrapRegisteredTools as C, findInitialModel as D, findExactModelReferenceMatch as E, prepareCompaction as F, sanitizeCompactionReplayMessages as G, takeRuntimeUserTurnTranscriptContext as H, collectEntriesForBranchSummary as I, estimateJsonPayloadTokenPressure as J, stripStaleAssistantUsageBeforeLatestCompaction as K, generateBranchSummary as L, DEFAULT_THINKING_LEVEL as M, compact as N, parseModelPattern as O, generateSummary as P, estimateToolSchemaTokens as Q, executeBashWithOperations as R, loadExtensionFromFactory as S, DefaultPackageManager as T, takeRuntimeUserTurnTranscriptRecorder as U, attachRuntimeUserTurnTranscriptRecorder as V, withRuntimeUserTurnTranscriptRecorder as W, estimateRenderedPromptTokens as X, estimateMessageTokenPressure as Y, estimateStringTokenPressure as Z, setSessionToolTextPreparer as _, recordSessionModelUsage as a, ExtensionRunner as b, agentSessionQueuePromptContext as c, createCompactionRequestBudget as d, estimateCompactedRequestTokens as f, subscribeSteeringMessagePersistenceFailure as g, getSteeringMessageIdentity as h, agentSessionSetContextReplacementHook as i, restoreModelFromSession as j, resolveCliModel as k, agentSessionSetPromptPreparation as l, loadSkills as m, AgentSession as n, setSessionModelUsageSink as o, formatSkillsForPrompt as p, resolveCompactionInstructions as q, agentSessionAutomaticCompaction as r, preflightManualSessionCompaction as s, DefaultResourceLoader as t, attachPromptCompactionRequestBudget as u, createSessionManagerRuntimeRegistry as v, SettingsManager as w, createExtensionRuntime as x, retireQueuedUserMessage as y, createEventBus as z };
+--- a/dist/tool-result-truncation-CKAInP-Z.mjs
++++ b/dist/tool-result-truncation-CKAInP-Z.mjs
+@@ -1,3 +1,4 @@
++import { deduplicatePreparedToolResult, hasDeclaredContextProjection, omitDeclaredToolResultBodies } from "./context-budget-projection-hardy-20261125.mjs";
+ import { o as normalizeLowercaseStringOrEmpty } from "./string-coerce-6kR-86XC.mjs";
+ import { n as collectErrorGraphCandidates } from "./error-coercion-1P2One0X.mjs";
+ import { n as captureAsyncWorkTracker } from "./async-work-scope-ClifbwQr.mjs";
+@@ -668,6 +669,8 @@
+ 	return Array.isArray(content) ? content.reduce((total, block) => total + (isToolResultTextBlock(block) ? estimateStringCharsWithMinimumRawWeight(block.text) : 0), 0) : 0;
+ }
+ function truncateToolResultMessage(msg, maxChars, options = {}) {
++ // Structured trusted readback frames must never become broken JSON or lose references.
++ if (hasDeclaredContextProjection(msg)) return msg;
+ 	const suffixFactory = resolveSuffixFactory(options.suffix);
+ 	const budgetOptions = { minimumRawWeight: options.minimumRawWeight };
+ 	const minKeepChars = resolveEffectiveMinKeepChars({
+@@ -1275,5 +1278,46 @@
+ 	const estimate = estimateToolResultReductionPotential(params);
+ 	return estimate.oversizedCount > 0 || estimate.aggregateReducibleChars > 0;
+ }
++
++/** Same native projection owner; original transcript entries and details remain immutable. */
++function projectFrozenNativeToolResultBranch(branch, projectionState) {
++ return projectToolResultBranch({branch,projectionState,frozenOnly:true}).branch;
++}
++function projectNativeToolResultBranch(params) {
++ const projection=projectToolResultBranch({branch:params.branch,projectionState:params.projectionState,recordSources:true});
++ let branch=projection.branch;
++ const cost=()=>params.estimate(branch.slice(params.firstIndex));
++ const before=cost();
++ if(before<=params.targetTokens)return {branch,changed:0,omittedChars:0,beforeTokens:before,afterTokens:before};
++ let omittedChars=0;const changedKeys=new Set();
++ for(const transform of [deduplicatePreparedToolResult,omitDeclaredToolResultBodies]){
++  const candidates=[];let messageIndex=0;
++  for(let index=0;index<branch.length;index++){
++   const entry=branch[index];if(entry.type!=="message"||!entry.message)continue;
++   const key=projection.keys[messageIndex++];
++   if(index<params.firstIndex||!key||entry.message.role!=="toolResult")continue;
++   const sourceHash=hashToolResultText(getToolResultTextBlocks(entry.message));
++   const expected=params.projectionState.sourceHashByKey.get(key);
++   const previous=params.projectionState.replacements.get(key);
++   const previousHash=previous?hashToolResultText(getToolResultTextBlocks({content:previous.content})):undefined;
++   if(sourceHash!==expected&&sourceHash!==previousHash)continue;
++   const transformed=transform(entry.message);if(!transformed)continue;
++   const reduction=params.estimate([entry])-params.estimate([{...entry,message:transformed.message}]);
++   if(reduction>0)candidates.push({index,key,...transformed,reduction});
++  }
++  candidates.sort((a,b)=>b.reduction-a.reduction||a.index-b.index);
++  for(const candidate of candidates){
++   if(cost()<=params.targetTokens)break;
++   branch=branch.slice();branch[candidate.index]={...branch[candidate.index],message:candidate.message};
++   params.projectionState.frozen.add(candidate.key);
++   recordToolResultPromptProjection(params.projectionState,candidate.key,candidate.message);
++   changedKeys.add(candidate.key);omittedChars+=candidate.omittedChars;
++  }
++  if(cost()<=params.targetTokens)break;
++ }
++ const changed=changedKeys.size;
++ return {branch,changed,omittedChars,beforeTokens:before,afterTokens:cost()};
++}
++
+ //#endregion
+-export { formatContextLimitTruncationNotice as C, wrapStreamObjectSettlement as S, stripInvalidThinkingSignatures as _, resolveLiveToolResultAggregateMaxChars as a, mapAssistantMessageStream as b, toolResultWarningDedupe as c, truncateToolResultMessage as d, truncateToolResultText as f, shouldPreserveLatestAssistantThinking as g, dropThinkingBlocks as h, resolveCacheTtlPruningSettings as i, truncateOversizedToolResultsInMessages as l, dropReasoningFromHistory as m, pruneExpiredCacheTtlToolResults as n, restoreCacheTtlToolResultProjections as o, assessLastAssistantMessage as p, reconcileToolResultPromptProjectionState as r, sessionLikelyHasOversizedToolResults as s, estimateToolResultReductionPotential as t, truncateOversizedToolResultsInSessionManager as u, stripThinkingBlocksFromMessage as v, wrapStreamObjectEvents as x, wrapAnthropicStreamWithRecovery as y };
++export { projectFrozenNativeToolResultBranch, projectNativeToolResultBranch, formatContextLimitTruncationNotice as C, wrapStreamObjectSettlement as S, stripInvalidThinkingSignatures as _, resolveLiveToolResultAggregateMaxChars as a, mapAssistantMessageStream as b, toolResultWarningDedupe as c, truncateToolResultMessage as d, truncateToolResultText as f, shouldPreserveLatestAssistantThinking as g, dropThinkingBlocks as h, resolveCacheTtlPruningSettings as i, truncateOversizedToolResultsInMessages as l, dropReasoningFromHistory as m, pruneExpiredCacheTtlToolResults as n, restoreCacheTtlToolResultProjections as o, assessLastAssistantMessage as p, reconcileToolResultPromptProjectionState as r, sessionLikelyHasOversizedToolResults as s, estimateToolResultReductionPotential as t, truncateOversizedToolResultsInSessionManager as u, stripThinkingBlocksFromMessage as v, wrapStreamObjectEvents as x, wrapAnthropicStreamWithRecovery as y };
+--- a/dist/builtin-openclaw-DEib7rq9.mjs
++++ b/dist/builtin-openclaw-DEib7rq9.mjs
+@@ -1,3 +1,4 @@
++import { resolveNativeReplyReserve, hasDeclaredContextProjection } from "./context-budget-projection-hardy-20261125.mjs";
+ import { c as normalizeOptionalLowercaseString, g as readStringValue, l as normalizeOptionalString, n as localeLowercasePreservingWhitespace, o as normalizeLowercaseStringOrEmpty, t as hasNonEmptyString } from "./string-coerce-6kR-86XC.mjs";
+ import { D as resolveExpiresAtMsFromDurationMs, F as resolveTimerTimeoutMs, g as isFutureDateTimestampMs, h as finiteSecondsToTimerSafeMilliseconds, m as clampTimerTimeoutMs, o as asDateTimestampMs, s as asFiniteNumber, v as parseDateFirstTimestampMs, w as parseStrictPositiveInteger, y as parseDateStringTimestampMs } from "./number-coercion-Dq1l5muL.mjs";
+ import { r as consumeRootOptionToken } from "./cli-root-options-DGcy1qRg.mjs";
+@@ -294,7 +295,7 @@
+ import { t as resolveAttemptWorkspaceSandbox } from "./workspace-sandbox-DOQexLIc.mjs";
+ import { C as isAnthropicFamilyCacheTtlEligible, b as isCodeModeDiagnosticEnabled, s as createCodexNativeWebSearchWrapper, w as isAnthropicModelRef, x as logCodeModeDiagnostic } from "./proxy-CX3DJ05g.mjs";
+ import { a as resolvePreparedExtraParams, n as resolveAgentTransportOverride, o as isGooglePromptCacheEligible, r as resolveExplicitSettingsTransport, s as resolveCacheRetention, t as applyExtraParamsToAgent } from "./extra-params-Bt7cAVur.mjs";
+-import { G as sanitizeCompactionReplayMessages, K as stripStaleAssistantUsageBeforeLatestCompaction, P as generateSummary, a as recordSessionModelUsage, c as agentSessionQueuePromptContext, d as createCompactionRequestBudget, g as subscribeSteeringMessagePersistenceFailure, h as getSteeringMessageIdentity, i as agentSessionSetContextReplacementHook, l as agentSessionSetPromptPreparation, o as setSessionModelUsageSink, q as resolveCompactionInstructions, u as attachPromptCompactionRequestBudget, v as createSessionManagerRuntimeRegistry, w as SettingsManager, y as retireQueuedUserMessage } from "./resource-loader-CFBQ8DO5.mjs";
++import { debugNativeRequestBudget, withUnprocessedNativeUserIdentity, f as estimateCompactedRequestTokens, projectNativeBudgetMessages, G as sanitizeCompactionReplayMessages, K as stripStaleAssistantUsageBeforeLatestCompaction, P as generateSummary, a as recordSessionModelUsage, c as agentSessionQueuePromptContext, d as createCompactionRequestBudget, g as subscribeSteeringMessagePersistenceFailure, h as getSteeringMessageIdentity, i as agentSessionSetContextReplacementHook, l as agentSessionSetPromptPreparation, o as setSessionModelUsageSink, q as resolveCompactionInstructions, u as attachPromptCompactionRequestBudget, v as createSessionManagerRuntimeRegistry, w as SettingsManager, y as retireQueuedUserMessage } from "./resource-loader-CFBQ8DO5.mjs";
+ import { C as formatContextLimitTruncationNotice, S as wrapStreamObjectSettlement, _ as stripInvalidThinkingSignatures, a as resolveLiveToolResultAggregateMaxChars, b as mapAssistantMessageStream, c as toolResultWarningDedupe, d as truncateToolResultMessage, f as truncateToolResultText, g as shouldPreserveLatestAssistantThinking, h as dropThinkingBlocks, i as resolveCacheTtlPruningSettings, l as truncateOversizedToolResultsInMessages, m as dropReasoningFromHistory, n as pruneExpiredCacheTtlToolResults, o as restoreCacheTtlToolResultProjections, p as assessLastAssistantMessage, r as reconcileToolResultPromptProjectionState, u as truncateOversizedToolResultsInSessionManager, v as stripThinkingBlocksFromMessage, x as wrapStreamObjectEvents, y as wrapAnthropicStreamWithRecovery } from "./tool-result-truncation-CKAInP-Z.mjs";
+ import { a as MidTurnPrecheckSignal, i as guardSessionManager, o as isMidTurnPrecheckAssistantError, r as createAgentSessionForEmbeddedRunner, s as isMidTurnPrecheckSignal, t as createEmbeddedAgentResourceLoader } from "./resource-loader-DGY8KcdK.mjs";
+ import { a as hasSessionUserTurnBeenSent, c as persistToolResultProjections, i as getEmbeddedSessionPromptState, n as cloneToolResultPromptProjectionState, s as markSessionUserTurnsSent } from "./session-prompt-state-BmVcmgqy.mjs";
+@@ -1009,7 +1010,7 @@
+ function enforceToolResultLimit(params) {
+ 	const { messages, maxSingleToolResultChars } = params;
+ 	const estimateCache = createMessageCharEstimateCache();
+-	return projectMessages(messages, (message) => truncateToolResultToChars(message, maxSingleToolResultChars, estimateCache));
++	return projectMessages(messages, (message) => hasDeclaredContextProjection(message) ? message : truncateToolResultToChars(message, maxSingleToolResultChars, estimateCache));
+ }
+ function toMidTurnPrecheckRequest(result) {
+ 	if (result.route === "fits") return null;
+@@ -1123,6 +1124,16 @@
+ 		mutableAgent.transformContext = originalTransformContext;
+ 	};
+ }
++function assertNativeReplyBudgetBeforeStream(context,requestBudget,onPressure) {
++ debugNativeRequestBudget("request",context.messages??[],requestBudget);
++ const estimatedInput=estimateCompactedRequestTokens(context.messages??[],requestBudget);
++ const replyTokens=requestBudget.replyTokens??0;
++ if(estimatedInput+replyTokens<=requestBudget.contextWindow)return;
++ const request={route:"compact_then_truncate",estimatedPromptTokens:estimatedInput,
++  promptBudgetBeforeReserve:requestBudget.contextWindow,overflowTokens:estimatedInput+replyTokens-requestBudget.contextWindow,
++  toolResultReducibleChars:0,effectiveReserveTokens:replyTokens};
++ onPressure(request);throw new MidTurnPrecheckSignal(request);
++}
+ function installToolResultContextGuard(params) {
+ 	const maxSingleToolResultChars = resolveToolResultContextMaxChars(params.contextWindowTokens);
+ 	const mutableAgent = params.agent;
+@@ -1130,10 +1141,31 @@
+ 	let lastSeenLength = null;
+ 	mutableAgent.transformContext = async (messages, signal) => {
+ 		const transformed = originalTransformContext ? await originalTransformContext.call(mutableAgent, messages, signal) : messages;
+-		const contextMessages = enforceToolResultLimit({
+-			messages: Array.isArray(transformed) ? transformed : messages,
+-			maxSingleToolResultChars
+-		});
++  let sourceMessages = enforceToolResultLimit({messages:Array.isArray(transformed)?transformed:messages,maxSingleToolResultChars});
++  if(params.nativeBudget && sourceMessages.some(isToolResultMessage)){
++   signal?.throwIfAborted();
++   const requestBudget=params.nativeBudget.getBudget();
++   const projection=await projectNativeBudgetMessages({
++    sessionManager:params.nativeBudget.sessionManager,messages:sourceMessages,
++    requestBudget,projectionState:params.nativeBudget.projectionState,
++    withOwnedWrite:params.nativeBudget.withOwnedWrite,
++    assertCurrent:()=>signal?.throwIfAborted()
++   });
++   sourceMessages=projection.messages;
++   // Reserve-threshold maintenance remains stock-owned; do not reject a fitting fresh turn.
++   const promptBudget=requestBudget.contextWindow-(requestBudget.replyTokens??0);
++   if(projection.estimatedTokens>promptBudget){
++    const request={route:"compact_then_truncate",estimatedPromptTokens:projection.estimatedTokens,
++     promptBudgetBeforeReserve:requestBudget.contextWindow,
++     overflowTokens:projection.estimatedTokens-promptBudget,
++     toolResultReducibleChars:projection.omittedChars,effectiveReserveTokens:requestBudget.replyTokens??0};
++    params.nativeBudget.onOverBudget(request);
++    throw new MidTurnPrecheckSignal(request);
++   }
++  }
++  const contextMessages = enforceToolResultLimit({
++   messages: sourceMessages,maxSingleToolResultChars
++  });
+ 		if (params.midTurnPrecheck?.enabled) {
+ 			const prePromptMessageCount = Math.max(0, Math.min(contextMessages.length, lastSeenLength ?? params.midTurnPrecheck.getPrePromptMessageCount?.() ?? contextMessages.length));
+ 			lastSeenLength = prePromptMessageCount;
+@@ -1382,9 +1414,19 @@
+ 	}
+ 	const removeToolResultGuard = installToolResultContextGuard({
+ 		agent: activeSession.agent,
+-		contextWindowTokens: contextTokenBudget,
+-		...midTurnPrecheckOptions
+-	});
++  contextWindowTokens: contextTokenBudget,
++  nativeBudget:{
++   sessionManager:input.sessionManager,projectionState:input.toolResultPromptProjectionState,
++   withOwnedWrite:input.withOwnedTranscriptWrite,
++   getBudget:()=>createCompactionRequestBudget({contextWindow:contextTokenBudget,
++    reserveTokens:settingsManager.getCompactionReserveTokens(),
++    systemPrompt:activeSession.agent.state.systemPrompt,tools:activeSession.agent.state.tools,
++    ...resolveNativeReplyReserve({model:attempt.model,extraParams:input.getEffectiveExtraParams?.(),options:attempt.streamParams}),
++    pendingUserIdempotencyKey:activeSession.currentNativeCompactionRequestBudget?.pendingUserIdempotencyKey}),
++   onOverBudget:request=>{pendingMidTurnPrecheckRequest=request;}
++  },
++  ...midTurnPrecheckOptions
++ });
+ 	const removeHistoryImagePruneContextTransform = installHistoryImagePruneContextTransform(activeSession.agent, {
+ 		workspaceDir: input.effectiveWorkspace,
+ 		agentWorkspaceDir: attempt.workspaceDir,
+@@ -1422,6 +1464,7 @@
+ 			removeContextEngineLoopHook?.();
+ 			activeSession.agent.transformContext = previousCacheTtlTransform;
+ 		},
++  recordNativeBudgetPressure:request=>{pendingMidTurnPrecheckRequest=request;},
+ 		takePendingMidTurnPrecheckRequest: () => {
+ 			const request = pendingMidTurnPrecheckRequest;
+ 			pendingMidTurnPrecheckRequest = null;
+@@ -7140,6 +7183,7 @@
+ 			const pendingContextMessages = promptContext.runtimeContextMessageForCurrentTurn ? [promptContext.runtimeContextMessageForCurrentTurn] : [];
+ 			compactionRequestBudget = createCompactionRequestBudget({
+ 				...foregroundBudget,
++    ...resolveNativeReplyReserve({model:attempt.model,extraParams:effectiveExtraParams,options:attempt.streamParams}),
+ 				systemPrompt: promptContext.systemPromptForHook,
+ 				tools: activeSession.agent.state.tools,
+ 				pendingPrompt: promptContext.llmBoundaryPromptForPrecheck,
+@@ -7155,11 +7199,25 @@
+ 			attempt.onCompactionRequestBudget?.(compactionRequestBudget);
+ 			const streamFn = activeSession.agent.streamFn;
+ 			activeSession.agent.streamFn = (model, context, options) => {
+-				if (!activeSession.isCompacting) attempt.onCompactionRequestBudget?.(createCompactionRequestBudget({
+-					...foregroundBudget,
+-					systemPrompt: context.systemPrompt,
+-					tools: context.tools
+-				}));
++    if (!activeSession.isCompacting) {
++     const nativeBudget=createCompactionRequestBudget({
++      ...foregroundBudget,...resolveNativeReplyReserve({model,extraParams:effectiveExtraParams,options}),
++      systemPrompt:context.systemPrompt,tools:context.tools
++     });
++     const pendingAwareBudget=withUnprocessedNativeUserIdentity(nativeBudget,activeSession.currentNativeCompactionRequestBudget);
++     activeSession.currentNativeCompactionRequestBudget=pendingAwareBudget;
++     attempt.onCompactionRequestBudget?.(pendingAwareBudget);
++     assertNativeReplyBudgetBeforeStream(context,pendingAwareBudget,contextGuards.recordNativeBudgetPressure);
++     // Only a submitted request may release the prepared unprocessed-input fence.
++     activeSession.currentNativeCompactionRequestBudget=nativeBudget;
++     attempt.onCompactionRequestBudget?.(nativeBudget);
++    } else {
++     debugNativeRequestBudget("summary_request",context.messages??[],createCompactionRequestBudget({
++      contextWindow:attempt.contextTokenBudget??model.contextWindow,reserveTokens:0,
++      ...resolveNativeReplyReserve({model,extraParams:effectiveExtraParams,options}),
++      systemPrompt:context.systemPrompt,tools:context.tools
++     }));
++    }
+ 				return streamFn(model, context, options);
+ 			};
+ 		}
+@@ -18354,6 +18412,8 @@
+ 		getCompactionReplayEnabled: () => transport.compactionReplayEnabled,
+ 		getServerToolClearingEnabled: () => transport.serverToolClearingEnabled,
+ 		toolResultPromptProjectionState,
++  withOwnedTranscriptWrite:sessionLock.withOwnedTranscriptWrite,
++  getEffectiveExtraParams:()=>transport.effectiveExtraParams,
+ 		getSystemPrompt: () => state.systemPromptText,
+ 		isOpenAIResponsesApi,
+ 		repairToolUseResultPairing: transcriptPolicy.repairToolUseResultPairing,
+@@ -20151,3 +20211,5 @@
+ }
+ //#endregion
+ export { isEmbeddedRunTerminalTimeout as $, resolveIncompleteTurnPayloadText as A, shouldTreatEmptyAssistantReplyAsSilent as B, clearProviderPromptState as C, TRUNCATED_REPLY_NOTICE_TEXT as D, createAttemptCarryover as E, resolveEmptyResponseRetryInstruction as F, injectTimestamp as G, isStrictAgenticExecutionContractActive as H, resolveReasoningOnlyRetryInstruction as I, validateReplayTurns as J, timestampOptsFromConfig as K, resolveSettledToolBatchEvidence as L, resolveRunLivenessState as M, resolveSilentToolResultReplyPayload as N, YIELD_DIAGNOSTIC_TEXT as O, shouldRetryMissingAssistantTurn as P, isEmbeddedRunTerminalInterrupted as Q, resolveSettledToolTerminalContinuationInstruction as R, createDeferredEmbeddedRunLifecycleManager as S, markLastProviderPromptContextRejected as T, prepareEmbeddedAttemptPromptExecution as U, countSettledTurnDeliveryPayloads as V, applyResolvedToolPromptFinalizer as W, limitHistoryTurns as X, getHistoryLimitFromSessionKey as Y, isEmbeddedRunTerminalAbort as Z, getCompactionSafeguardRuntime as _, createMessageCharEstimateCache as _t, prepareAgentMemoryPrompt as a, isCurrentAttemptReplaySafe as at, measureEmbeddedAgentPreparation as b, runBestEffortCallback as bt, collectRegisteredToolNames as c, createEmbeddedRunReplayState as ct, buildEmbeddedSystemPrompt as d, flushPendingToolResultsAfterIdle as dt, isEmbeddedRunTimeoutFinal as et, buildEmbeddedExtensionFactories as f, logRuntimeToolSchemaQuarantine as ft, consumeCompactionSafeguardCancellation as g, formatEmbeddedRunStageSummary as gt, readPostCompactionContext as h, createEmbeddedRunStageTracker as ht, resolveAgentRunSessionTarget as i, hasAttemptTerminalState as it, resolveReplayInvalidFlag as j, hasYieldContinuationEvidence as k, toSessionToolAllowlist as l, observeReplayMetadata as lt, appendPostCompactionRefreshPrompt as m, createEmbeddedRunStageSummaryEmitter as mt, isBuiltInOpenClawAgentHarness as n, resolveEmbeddedRunAttemptTerminalState as nt, resolveEmbeddedSessionContextLimits as o, resolveCurrentAttemptAssistant as ot, isRealConversationMessage as p, EMBEDDED_RUN_ATTEMPT_DISPATCH_STAGE as pt, sanitizeSessionHistory as q, applyAgentRunSessionTargetIdentity as r, hasAsyncActivity as rt, collectAllowedToolNames as s, shouldContinueInteractiveAcceptedSessionSpawns as st, createOpenClawAgentHarness as t, resolveEmbeddedRunAttemptTerminalOutcome as tt, applySystemPromptToSession as u, createToolTerminalObserver as ut, setCompactionSafeguardCancellation as v, estimateMessageCharsCached as vt, getProviderPromptState as w, resolveProviderRefusal as x, createPreparedEmbeddedAgentSettingsManager as y, prepareEmbeddedSkills as yt, shouldRetrySilentErrorAssistantTurn as z };
++
++export { assertNativeReplyBudgetBeforeStream as hardyAssertNativeReplyBudget, installToolResultContextGuard as hardyInstallNativeBudgetGuard };
+--- a/dist/tool-search-n_DuQ-T8.mjs
++++ b/dist/tool-search-n_DuQ-T8.mjs
+@@ -1,3 +1,5 @@
++import { a as wrapExternalContent } from "./external-content-CmQTCbqd.mjs";
++import { attachDeferredContextPresentation, attachPreparedContextDedup, isSdkOwnedDeferredResult, markResolvedProjectionResult, isTrustedResolvedProjectionResult, markSdkProjectionToolDefinition, isTrustedProjectionToolDefinition, prepareDeferredToolResultForModel, attachPreparedContextProjection } from "./context-budget-projection-hardy-20261125.mjs";
+ import { t as createDeferredCore } from "./deferred-D0La5CRk.mjs";
+ import "./src-SskUVPJG.mjs";
+ import { c as isRecord } from "./record-coerce-TIsquoVR.mjs";
+@@ -1626,10 +1628,8 @@
+ 					if (outputVariants) executedOutputSelection = captureToolOutputSelection(outputVariants.inputProperty, finalInput);
+ 				}, runExecution) : await runExecution());
+ 				if (options?.parentToolCallId) this.terminalTargetBatchByParent.set(options.parentToolCallId, this.terminalTargetBatchByParent.get(options.parentToolCallId) !== false && acceptedResult.terminate === true);
+-				return {
+-					tool: compactToolSearchCatalogEntry(entry),
+-					result: acceptedResult
+-				};
++    const receipt={tool:compactToolSearchCatalogEntry(entry),result:acceptedResult};
++    return markResolvedProjectionResult(receipt,entry.source==="openclaw"?entry.tool:undefined);
+ 			} finally {
+ 				finalizeToolTerminalPresentation({
+ 					toolCallId,
+@@ -1666,7 +1666,8 @@
+ /** Preserve programmatic values while protecting the model-facing control output. */
+ function formatToolSearchControlResult(payload, runtime, options = {}) {
+ 	const serialized = serializeToolSearchControlResult(payload, options.compact);
+-	const { text } = renderToolSearchControlText(serialized, runtime?.hasNetworkContent(options.parentToolCallId) ?? false);
++ const networkContent=runtime?.hasNetworkContent(options.parentToolCallId)??false;
++ const {text}=options.trustedContextProjection?{text:networkContent?wrapExternalContent(serialized,{source:"api"}):serialized}:renderToolSearchControlText(serialized,networkContent);
+ 	const result = textResult(text, payload);
+ 	return options.terminalBatchStatus !== "waiting" && runtime?.takeTerminalTargetBatch(options.parentToolCallId) === true ? {
+ 		...result,
+@@ -1848,8 +1849,9 @@
+ 			prepareArguments: prepareToolSearchDispatcherArguments,
+ 			execute: async (toolCallId, args) => formatToolSearchControlResult(await runtime.describe(readToolSearchId(args), { parentToolCallId: toolCallId }), runtime, { parentToolCallId: toolCallId })
+ 		},
+-		{
++		markSdkProjectionToolDefinition({
+ 			name: TOOL_CALL_RAW_TOOL_NAME,
++   contextProjectionV1:true,
+ 			label: "Tool Call",
+ 			description: "Call an exact Tool Search result id or name through OpenClaw.",
+ 			parameters: Type.Object({
+@@ -1865,18 +1867,24 @@
+ 						signal,
+ 						onUpdate
+ 					});
+-					const { id, name, source } = callResult.tool;
+-					const wrappedResult = {
++     const { id, name, source } = callResult.tool;
++     const contextView=prepareDeferredToolResultForModel(callResult.result,isTrustedResolvedProjectionResult(callResult),isSdkOwnedDeferredResult(callResult));
++     const wrappedResult = {
+ 						...formatToolSearchControlResult({
+ 							tool: {
+ 								id,
+ 								name,
+ 								source
+ 							},
+-							result: callResult.result
+-						}, runtime, { parentToolCallId: toolCallId }),
+-						details: callResult
+-					};
++       result: contextView.result
++      }, runtime, { parentToolCallId: toolCallId, trustedContextProjection:contextView.projectedResult!==undefined }),
++      details: callResult
++     };
++     if(contextView.projectedResult||contextView.deduplicatedResult){
++      const serialized=serializeToolSearchControlResult({tool:{id,name,source},result:contextView.result});
++      wrappedResult.details=attachDeferredContextPresentation(callResult,wrappedResult.content?.[0]?.text,serialized,
++       contextView.projectedResult?contextView.innerProjection:undefined,contextView.deduplicatedResult!==undefined);
++     }
+ 					const failureKind = resolveToolResultFailureKind(callResult.result);
+ 					if (!failureKind) return wrappedResult;
+ 					return {
+@@ -1890,7 +1898,7 @@
+ 					throw formatToolSearchControlError(error, runtime, toolCallId, signal ?? ctx.abortSignal);
+ 				}
+ 			}
+-		}
++		})
+ 	];
+ }
+ //#endregion
+--- a/dist/agent-tool-definition-adapter-DhVQiLqj.mjs
++++ b/dist/agent-tool-definition-adapter-DhVQiLqj.mjs
+@@ -1,3 +1,4 @@
++import {copyNativeProjectionToolDefinition} from "./context-budget-projection-hardy-20261125.mjs";
+ import { y as redactToolDetail } from "./redact-CYYx6Qjc.mjs";
+ import "./utils-DUAwk2p5.mjs";
+ import { t as isPlainObject } from "./plain-object-BFvGATnd.mjs";
+@@ -290,6 +291,7 @@
+ 				});
+ 			}
+ 		};
++		copyNativeProjectionToolDefinition(tool,definition);
+ 		copyCodeModeControlToolIdentity(tool, definition);
+ 		if (!sourcePreparer) return beforeHookWrapped ? definition : attachAdapterExecutionPreparer(definition);
+ 		return attachInternalToolExecutionPreparer(definition, async (params) => {
+--- a/dist/tools-BEx53dKD.mjs
++++ b/dist/tools-BEx53dKD.mjs
+@@ -1,3 +1,4 @@
++import {copyNativeProjectionToolDefinition} from "./context-budget-projection-hardy-20261125.mjs";
+ import { F as resolveTimerTimeoutMs, M as resolveNonNegativeIntegerOption, j as resolveIntegerOption } from "./number-coercion-Dq1l5muL.mjs";
+ import { u as toErrorObject } from "./error-coercion-1P2One0X.mjs";
+ import { t as createDeferredCore } from "./deferred-D0La5CRk.mjs";
+@@ -992,6 +993,7 @@
+ 		executionMode: definition.executionMode,
+ 		execute: (toolCallId, params, signal, onUpdate) => definition.execute(toolCallId, params, signal, onUpdate, ctxFactory?.())
+ 	};
++	copyNativeProjectionToolDefinition(definition,tool);
+ 	copyCodeModeControlToolIdentity(definition, tool);
+ 	return copyInternalToolExecutionPreparer(definition, tool);
+ }
+@@ -1017,7 +1019,8 @@
+ 		executionMode: tool.executionMode,
+ 		execute: async (toolCallId, params, signal, onUpdate) => tool.execute(toolCallId, params, signal, onUpdate)
+ 	};
+-	copyCodeModeControlToolIdentity(tool, definition);
++	copyNativeProjectionToolDefinition(tool,definition);
++		copyCodeModeControlToolIdentity(tool, definition);
+ 	return copyInternalToolExecutionPreparer(tool, definition);
+ }
+ //#endregion
+--- a/dist/resource-loader-DGY8KcdK.mjs
++++ b/dist/resource-loader-DGY8KcdK.mjs
+@@ -1,3 +1,4 @@
++import {trustedContextPresentationDetails} from "./context-budget-projection-hardy-20261125.mjs";
+ import { l as normalizeOptionalString } from "./string-coerce-6kR-86XC.mjs";
+ import { j as resolveIntegerOption } from "./number-coercion-Dq1l5muL.mjs";
+ import { c as isRecord, i as asOptionalObjectRecord } from "./record-coerce-TIsquoVR.mjs";
+@@ -264,7 +265,13 @@
+ 	}) : msg;
+ 	if (capped.role !== "toolResult") return capped;
+ 	const details = capped.details;
+-	const sanitizedDetails = sanitizeToolResultDetailsForPersistence(details, redactionConfig);
++ const framework=trustedContextPresentationDetails(capped);
++ let ordinary=details;
++ if(framework&&isRecord(details)){
++  ordinary={...details};delete ordinary.__openclawContextProjectionV1;delete ordinary.__openclawContextDedupV1;
++ }
++ const ordinarySanitized=sanitizeToolResultDetailsForPersistence(ordinary,redactionConfig);
++ const sanitizedDetails=framework?{...ordinarySanitized,...framework}:ordinarySanitized;
+ 	return sanitizedDetails === details ? capped : {
+ 		...capped,
+ 		details: sanitizedDetails

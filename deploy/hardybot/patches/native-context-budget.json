@@ -1,0 +1,48 @@
+{
+  "patchId": "hardy-native-context-budget-20261125-v5",
+  "upstreamVersion": "2026.9.8",
+  "patchFile": "openclaw-2026.9.8-context-budget.v5.patch",
+  "files": [
+    {
+      "path": "dist/context-budget-projection-hardy-20261125.mjs",
+      "beforeSha256": null,
+      "afterSha256": "af2447161cc0b85afdede08d0705cc4f49ba94d3060d820505deeaacd35f0b27"
+    },
+    {
+      "path": "dist/resource-loader-CFBQ8DO5.mjs",
+      "beforeSha256": "e83e8e9b15431d2ab0ed07c199188295542a2715bb3a2cbea3f013db4f95e9f3",
+      "afterSha256": "4a97c72279f28be8b6f5f8c83ee4cca7e3e42be1d149d7322d04d864fc55d63d"
+    },
+    {
+      "path": "dist/tool-result-truncation-CKAInP-Z.mjs",
+      "beforeSha256": "940eac7805199f477700f374e026ba3034bdcc1481a9ca06f4f1348ec4e4a9d8",
+      "afterSha256": "c57dd403ba8417196ce873ece16c54a6fe4b6115dc32df0c743a2bdabddf6cf6"
+    },
+    {
+      "path": "dist/builtin-openclaw-DEib7rq9.mjs",
+      "beforeSha256": "82b47172010fa6763e1ec33c99a6300ee0059c50865248a1873439913619a7fd",
+      "afterSha256": "06d5ab0e238b148efe3f1c5912795ed9c797d18aa2816fbf8930e4e3acc85d43"
+    },
+    {
+      "path": "dist/tool-search-n_DuQ-T8.mjs",
+      "beforeSha256": "2919de1e0a1b6a3605ed77f99abb85e2b61a7f44992cf8132b4983e5a711f142",
+      "afterSha256": "5c6d1001ece824d6ab541d56846c3a685a8e0ca2c9db5454ec3de3220002837a"
+    },
+    {
+      "path": "dist/agent-tool-definition-adapter-DhVQiLqj.mjs",
+      "beforeSha256": "00dbd2e6f07fc4dc3b62cd4ee3973bc48a9fef239e3a9f3ee6ee65bc53057f9c",
+      "afterSha256": "14c683cae8e941f7649dc29ecad9b1baeb798428f387bdaee0b7583f081334f7"
+    },
+    {
+      "path": "dist/tools-BEx53dKD.mjs",
+      "beforeSha256": "a41a51a8327629be29cc076c5d9266843a056bd427d197ecdf6d446f136354fc",
+      "afterSha256": "8e4f0ea6e120a327009d3d70d4ad4b76f1cdc8b5bd67a13224261a7df98d449c"
+    },
+    {
+      "path": "dist/resource-loader-DGY8KcdK.mjs",
+      "beforeSha256": "39df4764ceb677488c473695262c4e1698ac30585d1fa837d1eb7d1cf7e56320",
+      "afterSha256": "e74787c25f5c81b3635b7687b41e7e23ba2092313e980f6e43be726da300e102"
+    }
+  ],
+  "patchSha256": "311e0a80e20ad3ff7fc4c6dc6edb256213676b5f48b44aaf3af58f07e577f4e6"
+}
