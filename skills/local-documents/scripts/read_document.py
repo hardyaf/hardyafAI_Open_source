@@ -1,9 +1,13 @@
-#!/home/codex/.openclaw/tools/document-reader/bin/python3
+#!/usr/bin/env python3
 """Bounded, local-only PDF extraction for the OpenClaw household agents."""
 
 from __future__ import annotations
 
 import argparse
+import base64
+import binascii
+import io
+import warnings
 import hashlib
 import importlib.metadata
 import ipaddress
@@ -26,7 +30,7 @@ MAX_PAGES = 100
 DEFAULT_EXCERPT = 12_000
 MAX_EXCERPT = 30_000
 DOCLING_TIMEOUT_SECONDS = 300
-CACHE_ROOT = Path.home() / ".openclaw" / "document-cache"
+CACHE_ROOT = Path(os.environ.get("HARDY_HOME_DOCUMENT_CACHE", str(Path.home() / ".openclaw" / "document-cache")))
 ALLOWED_LOCAL_ROOT = Path.home() / ".openclaw"
 ARTIFACTS_ROOT = Path.home() / ".openclaw" / "tools" / "document-reader" / "models"
 
@@ -163,7 +167,7 @@ def copy_local(source_text: str, destination: Path) -> str:
         raise DocumentError("local document does not exist") from exc
     allowed = ALLOWED_LOCAL_ROOT.resolve(strict=True)
     if not resolved.is_relative_to(allowed):
-        raise DocumentError("local documents must be under /home/codex/.openclaw")
+        raise DocumentError("local documents must be under the configured local root")
     if not resolved.is_file():
         raise DocumentError("local document is not a regular file")
     if resolved.stat().st_size > MAX_BYTES:
@@ -211,6 +215,65 @@ def stage_source(url: str | None, local_file: str | None) -> tuple[Path, str, st
         return destination, digest, label
     finally:
         shutil.rmtree(scratch, ignore_errors=True)
+
+
+def stage_artifact_stdin() -> tuple[Path, str, str]:
+    """Private bytes protocol for the artifact adapter; URLs/paths are never accepted here."""
+    raw = sys.stdin.buffer.read(((MAX_BYTES + 2) // 3) * 4 + 4097)
+    if len(raw) > ((MAX_BYTES + 2) // 3) * 4 + 4096:
+        raise DocumentError("artifact input exceeds its limit")
+    try:
+        payload = json.loads(raw)
+        if not isinstance(payload, dict) or set(payload) != {"mime_type", "content_base64"}:
+            raise ValueError("artifact schema")
+        mime = payload["mime_type"]
+        encoded = payload["content_base64"]
+        if mime not in {"application/pdf", "image/png", "image/jpeg", "image/webp"} or not isinstance(encoded, str):
+            raise ValueError("artifact schema")
+        data = base64.b64decode(encoded, validate=True)
+    except (ValueError, TypeError, binascii.Error, UnicodeError) as exc:
+        raise DocumentError("artifact input is invalid") from exc
+    if not data or len(data) > MAX_BYTES:
+        raise DocumentError("artifact source is empty or exceeds 25 MiB")
+    digest = hashlib.sha256(data).hexdigest()
+    cache = ensure_cache_root()
+    directory = cache / digest
+    directory.mkdir(mode=0o700, exist_ok=True)
+    if directory.is_symlink() or directory.resolve() != directory:
+        raise DocumentError("artifact cache entry is unsafe")
+    extension = {"application/pdf": ".pdf", "image/png": ".png", "image/jpeg": ".jpg", "image/webp": ".webp"}[mime]
+    original = directory / ("source" + extension)
+    if original.exists():
+        if original.is_symlink() or sha256_file(original) != digest:
+            raise DocumentError("artifact cache source failed integrity verification")
+    else:
+        atomic_write(original, data)
+    if mime == "application/pdf":
+        assert_pdf(original)
+        return original, digest, "uploaded-document.pdf"
+    try:
+        from PIL import Image, ImageOps
+        Image.MAX_IMAGE_PIXELS = 20_000_000
+        with warnings.catch_warnings():
+            warnings.simplefilter("error", Image.DecompressionBombWarning)
+            with Image.open(io.BytesIO(data)) as image:
+                expected = {"image/png": "PNG", "image/jpeg": "JPEG", "image/webp": "WEBP"}[mime]
+                if image.format != expected or getattr(image, "n_frames", 1) != 1:
+                    raise DocumentError("image media mismatch or unsupported animation")
+                image.load()
+                oriented = ImageOps.exif_transpose(image)
+                rgba = oriented.convert("RGBA")
+                background = Image.new("RGB", rgba.size, "white")
+                background.paste(rgba, mask=rgba.getchannel("A"))
+                rendered = io.BytesIO()
+                background.save(rendered, format="PDF", resolution=150.0)
+    except DocumentError:
+        raise
+    except Exception as exc:
+        raise DocumentError("local image normalization failed") from exc
+    normalized = directory / "normalized.pdf"
+    atomic_write(normalized, rendered.getvalue())
+    return normalized, digest, "uploaded-card" + extension
 
 
 def extract_fast(path: Path, source_hash: str, label: str) -> dict[str, Any]:
@@ -395,13 +458,14 @@ def main() -> int:
     source = parser.add_mutually_exclusive_group(required=True)
     source.add_argument("--url")
     source.add_argument("--file")
+    source.add_argument("--stdin-artifact", action="store_true")
     parser.add_argument("--mode", choices=("auto", "fast", "structured", "ocr"), default="auto")
     parser.add_argument("--max-output-chars", type=int, default=DEFAULT_EXCERPT)
     args = parser.parse_args()
     if not 1000 <= args.max_output_chars <= MAX_EXCERPT:
         raise DocumentError(f"max-output-chars must be between 1000 and {MAX_EXCERPT}")
 
-    path, source_hash, label = stage_source(args.url, args.file)
+    path, source_hash, label = stage_artifact_stdin() if args.stdin_artifact else stage_source(args.url, args.file)
     document_dir = path.parent
     fast = extract_fast(path, source_hash, label)
     warnings: list[str] = []

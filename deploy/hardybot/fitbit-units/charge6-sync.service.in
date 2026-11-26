@@ -1,0 +1,11 @@
+[Unit]
+Description=Bounded official-app Fitbit sync session
+[Service]
+Type=exec
+ExecStart=@PILOT_ROOT@/tools/fitbit-control.py session @GUEST_ID@
+ExecStopPost=/usr/bin/systemctl --user stop charge6-@GUEST_ID@.service
+TimeoutStopSec=50
+RuntimeMaxSec=23min
+KillMode=control-group
+Restart=no
+LimitCORE=0

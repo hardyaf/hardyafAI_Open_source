@@ -19,6 +19,7 @@ export type AuthenticatedDevice = {
   deviceId: string;
   profileId: string;
   kind: "signed" | "development";
+  deviceKind?: "personal" | "display";
 };
 
 export class DeviceAuthenticator {
@@ -76,7 +77,7 @@ export class DeviceAuthenticator {
       const nonceExpires = new Date(signedAt + deviceAuthWindowMs).toISOString();
       if (!this.database.consumeNonce(deviceId, nonce, nonceExpires)) return undefined;
       this.database.recordDeviceSeen(deviceId);
-      return { deviceId, profileId: device.profileId, kind: "signed" };
+      return { deviceId, profileId: device.profileId, kind: "signed", deviceKind: device.deviceKind };
     } catch {
       return undefined;
     }

@@ -1,6 +1,19 @@
 # Hardy Home application architecture
 
-Status: Alex-only connected alpha deployed, 2026-10-05.
+> Deployment host/account identifiers are redacted. Example addresses use
+> `example.invalid`; paths use `$HOME`. Set actual connection, account and
+> storage values from protected operator configuration.
+
+**November 3 status:** preserve the implemented identity/transport boundary, but
+read the [current status](current-status.md) before treating queue, presets,
+media or family rollout descriptions as complete. The
+[living design](household-assistant-design.md) adds wiki, Rolodex, brain dumps,
+visuals, scoped display output and explicit no-repair diagnosis. These additions
+are proposed until their implementation and acceptance are recorded.
+
+Status: Alex-only connected alpha remains the accepted client baseline. Slice 1
+service version 0.4.0 deployed November 3; [Slice 2 run checks passed](slice-2-domain-capabilities.md),
+but expanded functionality acceptance remains deferred.
 
 ## Product boundary
 
@@ -15,8 +28,9 @@ The system has four deliberately separate responsibilities:
 2. The household control service authenticates devices, maps each person to
    exactly one configured agent, filters reads, schedules at most two household
    turns, and exposes sanitized diagnostics to Alex.
-3. OpenClaw owns agent execution, session transcripts, tools, memory, and
-   artifacts.
+3. OpenClaw owns agent execution, session transcripts, tools, memory and native
+   artifacts. The household service owns its scoped uploaded/published artifact
+   projection and native-bound checkpoint references.
 4. Ollama owns local inference. Configuring four agents does not require four
    copies of the model.
 
@@ -55,8 +69,10 @@ local Ollama model
   tools.
 - Shared lists and notes continue to use the existing neutral household store.
   The control service does not create a second memory system.
-- Conversation text remains canonical in OpenClaw. The service stores only
-  routing, display, preset, device, and queue metadata.
+- Conversation text remains canonical in OpenClaw. The service additionally
+  retains queued or unconfirmed submission payloads until definitive delivery
+  or terminal outcome, and owns scoped artifact bytes plus CAS checkpoint
+  pointers. See [Slice 1 ownership](slice-1-runtime-platform.md#data-ownership-and-lifecycle).
 
 The current redacted baseline has `sandbox.mode: "off"`, the `full` tool
 profile, filesystem access outside the workspace, and full Gateway exec. Those
@@ -187,7 +203,7 @@ failure or app restart.
 ## Connectivity
 
 During LAN development, the app may connect to the control service on
-`hardybot`. The production target is HTTPS/WSS through private Tailscale Serve
+the deployment host. The production target is HTTPS/WSS through private Tailscale Serve
 or another authenticated private ingress. OpenClaw should ultimately return to
 a loopback/private bind with only the control service and explicit operator
 maintenance paths able to reach it.
@@ -207,3 +223,37 @@ public internet.
    sanitized diagnostics, revocation, and an independent security test.
 5. **Cutover:** signed family release, backup/restore exercise, parallel Discord
    soak, then Discord removal only after acceptance evidence is complete.
+
+## Slice 2 native capability boundary
+
+The service and first-party native plugin compose the same domain protocols.
+Only trusted host invocation/run identity plus an admitted signed app request
+can execute the new tools. Exact session/run or goal lineage, current devices,
+profile bindings, audience and goal controls are checked; unknown/child/unmapped
+paths fail closed. Domains own schemas/effects and current resource ACLs.
+The effect registry is a receipt store, not another task queue. Replay/status
+does not republish cached domain content after resource permissions change.
+
+The protected domain-readiness API returns safe metadata; phones receive no
+raw tool executor, provider client, SQL, paths or Gateway secret. Contact/media,
+review/progress and source navigation views remain Slice 3.
+
+
+## November 25 web sidebar organization and retained deletion
+
+The web companion now uses viewport-bounded transcript/sidebar scrollers and an
+in-app Chats drawer on narrow screens. Existing signed title metadata supports
+title-only rename without overwriting current tags. Per-profile folders and chat
+placement live in the same household database migration authority. They organize
+only the viewer's sidebar, including visible household chats, and cannot change
+an audience or grant.
+
+Owner-only conversation removal is a canonical retained tombstone, not native
+history erasure or provider undo. Deletion verifies current identity, live native
+state and no unsettled work; admission, native/credential current guards and
+delayed reads reject removed conversations. Folder deletion clears only the
+viewer's placements and preserves conversations. No task, identity, queue,
+credential or memory authority was introduced. The
+[implementation record](web-conversation-organization.md) covers schema 8, stable
+folder operations, executed checks and the forward-repair requirement for any
+rollback after tombstones exist. Android does not yet expose the new folder UI.

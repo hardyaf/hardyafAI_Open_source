@@ -4,6 +4,7 @@ import type { AddressInfo } from "node:net";
 import { after, before, test } from "node:test";
 import { HouseholdDatabase } from "../src/database.ts";
 import { canonicalDeviceRequest, DeviceAuthenticator } from "../src/device-auth.ts";
+import { HouseholdEventHub } from "../src/events.ts";
 import { MockHouseholdAgentAdapter } from "../src/mock-adapter.ts";
 import { createHouseholdServer } from "../src/server.ts";
 import { SqliteHouseholdStore } from "../src/sqlite-household-store.ts";
@@ -12,7 +13,8 @@ const database = new HouseholdDatabase(":memory:");
 const adapter = new MockHouseholdAgentAdapter([]);
 const store = new SqliteHouseholdStore(database, adapter);
 const authenticator = new DeviceAuthenticator({ database });
-const server = createHouseholdServer({ database, store, authenticator });
+const eventHub = new HouseholdEventHub();
+const server = createHouseholdServer({ database, store, authenticator, eventHub });
 const keys = generateKeyPairSync("ec", { namedCurve: "prime256v1" });
 let baseUrl = "";
 let deviceId = "";
@@ -73,7 +75,7 @@ test("signed device requests authenticate and reject replay", async () => {
   assert.equal((await signedRequest("/v1/me", {}, nonce)).status, 401);
 });
 
-test("submission idempotency returns one canonical receipt", async () => {
+test("submission idempotency returns one canonical receipt and publishes only new submission events", async (t) => {
   const createBody = JSON.stringify({ title: "Connected alpha", presetId: null });
   const createResponse = await signedRequest("/v1/conversations", { method: "POST", body: createBody });
   assert.equal(createResponse.status, 201);
@@ -81,11 +83,20 @@ test("submission idempotency returns one canonical receipt", async () => {
   const submissionId = "submission-connected-alpha-0001";
   const messageBody = JSON.stringify({ text: "Hello from the signed device", submissionId });
   const path = `/v1/conversations/${conversationId}/messages`;
+  const publish = t.mock.method(eventHub, "publish");
   const first = await signedRequest(path, { method: "POST", body: messageBody });
   const second = await signedRequest(path, { method: "POST", body: messageBody });
   assert.equal(first.status, 202);
   assert.equal(second.status, 202);
   assert.deepEqual((await second.json()).receipt, (await first.json()).receipt);
+  assert.deepEqual(publish.mock.calls.map(call => call.arguments[0]), ["submission.changed"]);
+  assert.equal(database.getSubmission(submissionId)?.receipt.status, "queued");
+  assert.equal((await adapter.listMessages(database.getConversation(conversationId)!)).length, 0);
+  await store.reconcileRuns();
+  assert.equal(database.getSubmission(submissionId)?.receipt.status, "running");
+  const deliveredReplay = await signedRequest(path, { method: "POST", body: messageBody });
+  assert.equal((await deliveredReplay.json()).receipt.status, "running");
+  await store.reconcileRuns();
   const history = await signedRequest(path);
   const body = await history.json();
   assert.equal(body.messages.filter((message: { text: string }) => message.text === "Hello from the signed device").length, 1);
@@ -102,4 +113,23 @@ test("a submission id cannot be reused with changed text", async () => {
     body: JSON.stringify({ text: "Changed", submissionId }),
   });
   assert.equal(conflict.status, 409);
+});
+
+test("a signed metadata edit updates SQLite and preserves the native session binding", async () => {
+  const created = await signedRequest("/v1/conversations", {
+    method: "POST", body: JSON.stringify({ title: "Before editing" }),
+  });
+  assert.equal(created.status, 201);
+  const { conversation } = await created.json();
+  const path = "/v1/conversations/" + conversation.id + "/metadata";
+  const saved = await signedRequest(path, {
+    method: "PUT", body: JSON.stringify({ title: "After editing", tags: ["House", "Repairs"] }),
+  });
+  assert.equal(saved.status, 200);
+  assert.deepEqual(database.getConversation(conversation.id), {
+    ...conversation, title: "After editing", tags: ["House", "Repairs"],
+  });
+  const listed = await signedRequest("/v1/conversations");
+  assert.deepEqual((await listed.json()).conversations.find((row: { id: string }) => row.id === conversation.id),
+    (await saved.json()).conversation);
 });

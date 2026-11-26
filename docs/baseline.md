@@ -1,10 +1,18 @@
 # Redacted pre-cutover baseline
 
+> Deployment host/account identifiers are redacted. Example addresses use
+> `example.invalid`; paths use `$HOME`. Set actual connection, account and
+> storage values from protected operator configuration.
+
+**Historical installation baseline:** preserve this initial snapshot as evidence.
+Use [current status](current-status.md) for observed availability and the
+[living design](household-assistant-design.md) for current product intent.
+
 Captured on 2026-10-04 before OpenClaw activation.
 
 ## Host and resources
 
-- Hostname: `hardybot`
+- Hostname: the deployment host
 - OS: Ubuntu 26.04 LTS
 - Kernel: `7.0.0-34-generic`
 - CPU: 32 logical CPUs
@@ -32,12 +40,12 @@ They included the Jarvis API, task and email workers, approval/runner services,
 document and OCR services, Discord attachment processing, Paperless, SearXNG,
 and Ollama. The application health endpoint reported healthy even though its
 Ollama container had been stopped for seven days. A per-minute Jarvis email
-worker was also present in the `codex` crontab.
+worker was also present in the deployment user's crontab.
 
 Cutover actions:
 
 - Backed up the crontab under
-  `/home/codex/openclaw-migration/backups/20261004T201500Z/`.
+  `$HOME/openclaw-migration/backups/20261004T201500Z/`.
 - Removed the Jarvis cron entry.
 - Stopped both Compose projects and set their container restart policies to
   `no`.
@@ -69,24 +77,24 @@ downloads remain preserved.
 
 ## Discord and Google metadata
 
-Discord was connected as `Jarvis_bot` to guild `948294278109626428`.
+Discord was connected as `Jarvis_bot` to guild `<household-guild-id>`.
 Configured channels:
 
-- Shared household: `1482806445698318519`
-- Natasha private notes: `1538560098786349156`
-- Operator management: `1538572080482754692`
+- Shared household: `<shared-household-channel-id>`
+- Natasha private notes: `<private-notes-channel-id>`
+- Operator management: `<operator-channel-id>`
 
-Approved users were `277574064493821963` (operator) and
-`615698501061574666` (Natasha). The bot token was reused through an
+Approved users were `<operator-external-user-id>` (operator) and
+`<adult-external-user-id>` (Natasha). The bot token was reused through an
 environment SecretRef and is not recorded here.
 
 The existing Google OAuth client was preserved. Its old refresh token had
 expired or been revoked and could not be migrated. Intended calendar aliases
 were:
 
-- House: `hardy.aibot@gmail.com`
-- Alex: `hardyaf@gmail.com`
-- Natasha: `terpstra.nj@gmail.com`
+- House: `household-bot@example.invalid`
+- Alex: `alex@example.invalid`
+- Natasha: `natasha@example.invalid`
 
 After fresh authorization, the account actually exposes the House calendar and
 read-only U.S. Holidays. Alex and Natasha are not currently shared with the bot

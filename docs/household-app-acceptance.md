@@ -1,5 +1,15 @@
 # Hardy Home acceptance plan
 
+> Deployment host/account identifiers are redacted. Example addresses use
+> `example.invalid`; paths use `$HOME`. Set actual connection, account and
+> storage values from protected operator configuration.
+
+**November 3 interpretation:** the prior Alex-only phone acceptance below remains
+valid for its scope. It does not close queued dispatch, real run admission,
+private event filtering, consecutive task continuation or four-person rollout.
+Those acceptance cases are tracked in the
+[current implementation plan](household-assistant-implementation-plan.md).
+
 Do not replace Discord from a successful screenshot or conversational claim.
 Each phase requires independent readback or test evidence.
 
@@ -38,7 +48,7 @@ Evidence recorded on 2026-10-05:
 - The same live submission was replayed after an actual `household-control`
   process restart. Its receipt was reconciled from SQLite and canonical
   OpenClaw history still contained one user turn.
-- The private `hardybot` user service is enabled on `192.168.1.127:4317`; its
+- The private household user service was enabled at the protected household URL; its
   read-only Gateway probe reports connected.
 - Android lint, unit tests, APK assembly, and APK signature verification pass
   for `0.2.0-alpha`.
@@ -61,7 +71,7 @@ Evidence recorded on 2026-10-05:
 - Each person has a distinct agent workspace, session store, and memory index.
 - Cross-profile transcript reads fail unless the conversation is explicitly
   household-shared.
-- theo and Belle cannot select an adult agent, call an unlisted tool, open a
+- Fred and Belle cannot select an adult agent, call an unlisted tool, open a
   terminal, inspect configuration, or read adult workspace files.
 - Natasha-private content is not available to Alex administration views.
 - Prompt presets are selected by ID and arbitrary system-prompt text is

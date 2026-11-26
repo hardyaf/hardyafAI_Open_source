@@ -1,7 +1,6 @@
 import assert from "node:assert/strict";
 import { generateKeyPairSync, randomUUID, sign } from "node:crypto";
 import { existsSync, unlinkSync, writeFileSync } from "node:fs";
-import { resolve } from "node:path";
 import { HouseholdDatabase } from "../src/database.ts";
 import { canonicalDeviceRequest } from "../src/device-auth.ts";
 
@@ -9,8 +8,9 @@ if (process.env.HARDY_HOME_LIVE_SMOKE !== "1") {
   throw new Error("Set HARDY_HOME_LIVE_SMOKE=1 to run the state-changing live smoke test");
 }
 
-const baseUrl = process.env.HARDY_HOME_BASE_URL ?? "http://192.168.1.127:4317";
-const databasePath = process.env.HARDY_HOME_DATABASE ?? resolve("data", "household-control.sqlite");
+const baseUrl = process.env.HARDY_HOME_BASE_URL;
+const databasePath = process.env.HARDY_HOME_DATABASE;
+if (!baseUrl || !databasePath) throw new Error("Set explicit HARDY_HOME_BASE_URL and HARDY_HOME_DATABASE for the authorized live target");
 const restartGatePath = process.env.HARDY_HOME_RESTART_GATE_FILE;
 const keys = generateKeyPairSync("ec", { namedCurve: "prime256v1" });
 let deviceId = "";

@@ -53,14 +53,14 @@ test("a child cannot read diagnostics", async () => {
 });
 
 test("conversation creation derives the agent from device identity", async () => {
+  const forged = await request("/v1/conversations", "fred-tablet", {
+    method: "POST",
+    body: JSON.stringify({title: "Science question", presetId: "homework", agentId: "alex", ownerProfileId: "alex"}),
+  });
+  assert.equal(forged.status, 400);
   const response = await request("/v1/conversations", "fred-tablet", {
     method: "POST",
-    body: JSON.stringify({
-      title: "Science question",
-      presetId: "homework",
-      agentId: "alex",
-      ownerProfileId: "alex",
-    }),
+    body: JSON.stringify({title: "Science question", presetId: "homework", audience: "private"}),
   });
   assert.equal(response.status, 201);
   const body = await response.json();
@@ -69,13 +69,15 @@ test("conversation creation derives the agent from device identity", async () =>
 });
 
 test("a third profile is queued while both slots are active", async () => {
-  const response = await request("/v1/conversations/conv-fred-homework/messages", "fred-tablet", {
+  const path = "/v1/conversations/conv-fred-homework/messages";
+  const forged = await request(path, "fred-tablet", {
     method: "POST",
-    body: JSON.stringify({
-      text: "Can you help me understand fractions?",
-      submissionId: "submit-fred-0001",
-      agentId: "alex",
-    }),
+    body: JSON.stringify({text: "Can you help me understand fractions?", submissionId: "submit-fred-0001", agentId: "alex"}),
+  });
+  assert.equal(forged.status, 400);
+  const response = await request(path, "fred-tablet", {
+    method: "POST",
+    body: JSON.stringify({text: "Can you help me understand fractions?", submissionId: "submit-fred-0001", mode: "conversation"}),
   });
   assert.equal(response.status, 202);
   const body = await response.json();
@@ -88,4 +90,25 @@ test("a third profile is queued while both slots are active", async () => {
 test("private conversations do not cross profiles", async () => {
   const response = await request("/v1/conversations/conv-alex-week/messages", "fred-tablet");
   assert.equal(response.status, 404);
+});
+
+test("conversation titles and tags are owner-only, validated, and returned in the list", async () => {
+  const created = await request("/v1/conversations", "alex-phone", {
+    method: "POST", body: JSON.stringify({ title: "Original", audience: "household" }),
+  });
+  assert.equal(created.status, 201);
+  const { conversation } = await created.json();
+  const path = "/v1/conversations/" + conversation.id + "/metadata";
+  const save = (device: string, title: string, tags: string[], extra = {}) =>
+    request(path, device, { method: "PUT", body: JSON.stringify({ title, tags, ...extra }) });
+  assert.equal((await save("fred-tablet", "Other title", [])).status, 404);
+  assert.equal((await save("alex-phone", " ", [])).status, 400);
+  assert.equal((await save("alex-phone", "Home repairs", ["x".repeat(33)])).status, 400);
+  assert.equal((await save("alex-phone", "Home repairs", [], { audience: "private" })).status, 400);
+  const updated = await save("alex-phone", " Home repairs ", [" Projects ", "projects", "2026"]);
+  assert.equal(updated.status, 200);
+  assert.deepEqual((await updated.json()).conversation, { ...conversation, title: "Home repairs", tags: ["Projects", "2026"] });
+  const listed = await request("/v1/conversations", "fred-tablet");
+  assert.deepEqual((await listed.json()).conversations.find((row: { id: string }) => row.id === conversation.id).tags, ["Projects", "2026"]);
+  assert.deepEqual((await (await save("alex-phone", "Home repairs", [])).json()).conversation.tags, []);
 });

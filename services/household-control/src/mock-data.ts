@@ -27,8 +27,8 @@ export const profiles: FamilyProfile[] = [
   },
   {
     id: "fred",
-    displayName: "Fred",
-    initials: "FH",
+    displayName: "Theo",
+    initials: "TH",
     agentId: "fred",
     role: "child",
     color: "#E48122",

@@ -1,65 +1,94 @@
 # Hardy Home Android
 
-Native Kotlin/Jetpack Compose client for the household control service. This is
-a custom family interface, not an OpenClaw operator UI.
+Native Kotlin/Jetpack Compose household client. Each phone enrolls separately to one
+configured family profile and creates its own Android Keystore P-256 signing key.
+Private and household conversations have explicit audiences. Owner-only Connections forms
+hold entered provider credentials briefly in protected field state and send them directly
+to the isolated HTTPS credential service. They bypass chat, saved drafts and model input.
+The OpenClaw Gateway token remains server-side.
 
-The connected-alpha build uses `NetworkHouseholdRepository` and the generated
-household API client. `MockHouseholdRepository` remains only for Compose previews.
-The app includes:
+Slice 3 source includes conversation media capture/import/upload, linked clarifications,
+explicit action approval buttons, native task progress and goal controls, Rolodex lookup
+with history and card sources, personal/shared lists and knowledge, receipt review, and
+safe output previews. Available views and actions follow current server authorization;
+children remain conversation-only. No model picker, terminal or raw tool controls appear
+in the household interface.
 
-- four household status cards and a visible two-run limit;
-- phone pull-out navigation and a persistent tablet rail;
-- private/shared conversation summaries;
-- server-style prompt presets;
-- transcript, context/media panel, and Alex-only diagnostics;
-- a full-width composer with Android speech recognition;
-- no model picker, terminal, tools, Gateway settings, or generic agent picker.
+These features are implemented source, not a functionality certification. Build and startup
+checks run between integration slices; the consolidated functionality campaign follows
+the completed three-slice build. See [client architecture and acceptance notes](../../docs/slice3-clients.md).
 
-## Build requirements
+## Build on the authoritative Ubuntu host
 
-- Android Studio with JDK 17
-- Android SDK 37 and Build Tools 36.0.0
-- Gradle 9.6.0 / Android Gradle Plugin 9.4.0
+The project pins Gradle 9.6.0, Android Gradle Plugin 9.4.0 and Kotlin 2.4.10. It uses
+JDK 17, Android API 37 and Build Tools 36.0.0. Google's SDK package identifier is
+`platforms;android-37.0`. [AGP compatibility](https://developer.android.com/build/releases/agp-9-4-0-release-notes)
+documents the required Gradle, JDK and Build Tools versions.
 
-Open this directory in Android Studio and let it sync, or use a JDK 17 and an
-Android SDK with the included Gradle wrapper:
+Set `JAVA_HOME` and `ANDROID_HOME` to the host's managed build toolchain, then run:
 
-```powershell
-.\gradlew.bat :app:testDebugUnitTest :app:assembleDebug
+```sh
+bash gradlew --no-daemon :app:assembleDebug
 ```
 
-The debug APK will be under `app/build/outputs/apk/debug/`.
+The development-signed APK is `app/build/outputs/apk/debug/app-debug.apk`. Build scripts
+retain its hash and a separate copy with the integration-slice evidence. No Android
+emulator, instrumentation test, business workflow or provider call is part of this build
+command. Functionality testing remains a separate final campaign.
 
-## Install the prototype
+On first launch, enter the household service address and your own one-time phone
+invitation. The debug build supports a private LAN address; release builds require HTTPS.
+On Android 17 and newer, accept the local network permission when connecting to a household
+LAN service. A kitchen screen uses a different dedicated invitation and browser client.
 
-The checked build produces a development-signed APK for hands-on UI review.
-With USB debugging enabled on an Android phone or tablet, connect it and run
-from this directory:
+## Application boundaries
 
-```powershell
-..\..\.android-sdk\platform-tools\adb.exe devices
-..\..\.android-sdk\platform-tools\adb.exe install -r app\build\outputs\apk\debug\app-debug.apk
+`HouseholdRepository` owns UI state and request delivery. `NetworkHouseholdRepository`
+uses the enrolled device identity and the generated API client; the Slice 3 signed read
+adapter reuses the exact same canonical signing protocol. Pending submissions retain
+their exact request body and identity through a lost response or process restart.
+
+`WorkspaceRepositorySupport`, `HouseholdLibraryApi`, and `ClientAttachmentStore` own
+client projections, safe previews and temporary media delivery buffers. Canonical tasks,
+contacts, lists, memories, approvals and receipt states remain on their existing server
+owners. Media drafts are app-private until uploaded; disconnecting a phone clears its
+local drafts, identity and previews.
+
+`MockHouseholdRepository` is only for Compose previews. The app launches the real network
+repository and never presents simulated family data as a live connection.
+
+Regenerate/check the API client from the repository root:
+
+```sh
+node tools/generate-household-client.mjs
+node tools/generate-household-client.mjs --check
 ```
 
-On first launch, enter the household service address and the one-time Alex code
-created on `hardybot`. The phone creates a P-256 signing key in Android Keystore;
-neither the OpenClaw Gateway token nor a reusable enrollment code enters the app.
-On Android 17 or newer, accept the nearby/local-network prompt so the app can
-reach the private Hardybot address. This grants LAN access only; it does not
-expose an OpenClaw credential to the phone.
+## Tap-to-start and tap-to-stop dictation
 
-## Live integration seam
+Tap the microphone in Chat or Brain dump, speak at your own pace, then tap
+Stop. The foreground recorder stays open through silence and keeps the screen
+awake. Hardybot transcribes the completed clip locally and appends the result
+to the current conversation draft. The existing Send action submits the draft
+in the selected mode. Leaving the app or reaching 30 minutes stops capture
+and keeps the recording on the phone for explicit transcription or discard.
 
-`HouseholdRepository` remains the only UI data boundary. The network repository
-persists ambiguous submissions and retries the same submission ID after a restart,
-allowing the service and Gateway to reconcile the send without duplicating it.
+The Android client signs the binary AAC/MP4 request with the enrolled personal
+device key. The server rechecks the chat and voiceInput grants and current
+device binding. The CPU transcriber uses a pinned local model, processes the
+audio in memory, and returns draft text through the signed response. The
+binary endpoint is documented in the OpenAPI contract and uses the existing
+signed Android transport.
 
-The generated client comes from
-`../../contracts/household-api/openapi.json`. Regenerate or verify it with:
+## Protected connections
 
-```powershell
-node ..\..\tools\generate-household-client.mjs
-node ..\..\tools\generate-household-client.mjs --check
-```
+Version 0.6.0-alpha adds owner-only Bitwarden setup, password storage and Google OAuth.
+Credential fields are not saved across recreation or backgrounding, and credential
+screens block screenshots. Requests require HTTPS and bypass the ordinary retry cache.
+The service must report enforced isolation before forms are enabled.
 
-Do not add an OpenClaw token or Gateway client to the Android application.
+Google OAuth uses the owner's registered client and matches the expected account.
+A valid HTTPS DNS callback completes automatically. For a private IP service address,
+register the loopback redirect shown by the app and paste the returned browser URL
+into the protected completion field. The application exchanges the authorization code
+and saves the refresh token directly to Bitwarden.

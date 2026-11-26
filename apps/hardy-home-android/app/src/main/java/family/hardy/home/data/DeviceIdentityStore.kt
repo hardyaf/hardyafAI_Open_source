@@ -16,7 +16,7 @@ class DeviceIdentityStore(context: Context) : HouseholdRequestSigner {
     private val keyStore = KeyStore.getInstance("AndroidKeyStore").apply { load(null) }
 
     var serverUrl: String
-        get() = preferences.getString("server_url", null) ?: "http://192.168.1.127:4317"
+        get() = preferences.getString("server_url", null) ?: ""
         set(value) { preferences.edit().putString("server_url", value.trimEnd('/')).apply() }
 
     val deviceId: String?
@@ -36,6 +36,11 @@ class DeviceIdentityStore(context: Context) : HouseholdRequestSigner {
             .putString("device_id", deviceId)
             .putString("server_url", serverUrl.trimEnd('/'))
             .apply()
+    }
+
+    fun clearEnrollment() {
+        preferences.edit().remove("device_id").commit()
+        if (keyStore.containsAlias(keyAlias)) keyStore.deleteEntry(keyAlias)
     }
 
     fun ensureKey() {

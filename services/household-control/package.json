@@ -1,6 +1,6 @@
 {
   "name": "hardy-home-control",
-  "version": "0.2.0",
+  "version": "0.10.2",
   "private": true,
   "type": "module",
   "engines": {
@@ -11,10 +11,14 @@
     "probe": "node src/cli.ts probe-openclaw",
     "smoke:live": "node scripts/live-connected-alpha.ts",
     "start": "node src/server.ts",
+    "check:startup": "node scripts/check-source.mjs",
     "test": "node --test"
   },
   "dependencies": {
     "@openclaw/gateway-client": "2026.9.8",
-    "@openclaw/gateway-protocol": "2026.9.8"
+    "@openclaw/gateway-protocol": "2026.9.8",
+    "ajv": "8.20.0",
+    "yaml": "2.9.1",
+    "google-auth-library": "11.3.4"
   }
 }

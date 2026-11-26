@@ -2,151 +2,4787 @@
   "openapi": "3.1.0",
   "info": {
     "title": "Hardy Home Household API",
-    "version": "0.2.0",
-    "description": "The only family-device API. OpenClaw Gateway credentials and protocol are intentionally absent."
+    "version": "0.8.0",
+    "description": "Family and display device API. Protected requests use enrolled P256 device signatures. Connection management is owner-only on the isolated HTTPS ingress and bypasses chat, drafts, transcripts and model tools. Secret-bearing request fields are write-only and never returned. Current identity, audience and domain grants are rechecked server-side. Conversation folders and placements are private to the signed profile and never change chat access. Conversation deletion removes the app entry while retaining native history and audit; active or uncertain work must first be stopped."
   },
-  "servers": [{ "url": "https://hardybot.example.invalid" }],
-  "security": [{
-    "DeviceId": [],
-    "DeviceTimestamp": [],
-    "DeviceNonce": [],
-    "DeviceSignature": []
-  }],
+  "servers": [
+    {
+      "url": "https://hardybot.example.invalid"
+    }
+  ],
+  "security": [
+    {
+      "DeviceId": [],
+      "DeviceTimestamp": [],
+      "DeviceNonce": [],
+      "DeviceSignature": []
+    }
+  ],
   "paths": {
     "/health": {
       "get": {
         "operationId": "getHealth",
         "security": [],
-        "responses": { "200": { "description": "Service health", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/Health" } } } } }
+        "responses": {
+          "200": {
+            "description": "Service health",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Health"
+                }
+              }
+            }
+          }
+        }
       }
     },
     "/v1/enrollment/claim": {
       "post": {
         "operationId": "claimEnrollment",
         "security": [],
-        "requestBody": { "required": true, "content": { "application/json": { "schema": { "$ref": "#/components/schemas/EnrollmentClaim" } } } },
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/EnrollmentClaim"
+              }
+            }
+          }
+        },
         "responses": {
-          "201": { "description": "Device enrolled", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/EnrollmentResult" } } } },
-          "401": { "$ref": "#/components/responses/Error" }
-        }
+          "201": {
+            "description": "Device enrolled",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/EnrollmentResult"
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Error"
+          }
+        },
+        "x-device-kind": "personal"
       }
     },
     "/v1/me": {
       "get": {
         "operationId": "getCurrentProfile",
-        "responses": { "200": { "description": "Authenticated profile", "content": { "application/json": { "schema": { "type": "object", "required": ["profile"], "properties": { "profile": { "$ref": "#/components/schemas/Profile" } } } } } }, "401": { "$ref": "#/components/responses/Error" } }
+        "responses": {
+          "200": {
+            "description": "Authenticated profile",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "profile"
+                  ],
+                  "properties": {
+                    "profile": {
+                      "$ref": "#/components/schemas/Profile"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Error"
+          }
+        }
       }
     },
     "/v1/household/status": {
       "get": {
         "operationId": "getHouseholdStatus",
-        "responses": { "200": { "description": "Execution and profile status", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/HouseholdSnapshot" } } } } }
+        "responses": {
+          "200": {
+            "description": "Execution and profile status",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HouseholdSnapshot"
+                }
+              }
+            }
+          }
+        }
       }
     },
     "/v1/presets": {
       "get": {
         "operationId": "listPresets",
-        "responses": { "200": { "description": "Allowed prompt presets", "content": { "application/json": { "schema": { "type": "object", "required": ["presets"], "properties": { "presets": { "type": "array", "items": { "$ref": "#/components/schemas/Preset" } } } } } } } }
+        "responses": {
+          "200": {
+            "description": "Allowed prompt presets",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "presets"
+                  ],
+                  "properties": {
+                    "presets": {
+                      "type": "array",
+                      "items": {
+                        "$ref": "#/components/schemas/Preset"
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/dictation": {
+      "post": {
+        "summary": "Transcribe one local journal recording into draft text",
+        "description": "Signed personal devices with chat and voiceInput can submit one AAC recording in an MP4 container. The private local transcription endpoint returns text without creating a conversation or sending a message.",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "audio/mp4": {
+              "schema": {
+                "type": "string",
+                "format": "binary"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Draft text",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "text"
+                  ],
+                  "properties": {
+                    "text": {
+                      "type": "string"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid audio or recording duration"
+          },
+          "401": {
+            "description": "Device authentication required"
+          },
+          "403": {
+            "description": "Current personal device and voice grant required"
+          },
+          "413": {
+            "description": "Recording too large"
+          },
+          "503": {
+            "description": "Local transcription unavailable"
+          }
+        }
       }
     },
     "/v1/conversations": {
       "get": {
         "operationId": "listConversations",
-        "responses": { "200": { "description": "Authorized conversations", "content": { "application/json": { "schema": { "type": "object", "required": ["conversations"], "properties": { "conversations": { "type": "array", "items": { "$ref": "#/components/schemas/Conversation" } } } } } } } }
+        "responses": {
+          "200": {
+            "description": "Authorized conversations",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "conversations"
+                  ],
+                  "properties": {
+                    "conversations": {
+                      "type": "array",
+                      "items": {
+                        "$ref": "#/components/schemas/Conversation"
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
       },
       "post": {
         "operationId": "createConversation",
-        "requestBody": { "required": true, "content": { "application/json": { "schema": { "$ref": "#/components/schemas/CreateConversation" } } } },
-        "responses": { "201": { "description": "Created conversation", "content": { "application/json": { "schema": { "type": "object", "required": ["conversation"], "properties": { "conversation": { "$ref": "#/components/schemas/Conversation" } } } } } } }
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CreateConversation"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Created conversation",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "conversation"
+                  ],
+                  "properties": {
+                    "conversation": {
+                      "$ref": "#/components/schemas/Conversation"
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/conversations/{conversationId}/metadata": {
+      "parameters": [
+        {
+          "$ref": "#/components/parameters/ConversationId"
+        }
+      ],
+      "put": {
+        "operationId": "updateConversationMetadata",
+        "summary": "Update an owned conversation title; omitted tags retain their canonical current value",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ConversationMetadata"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Saved conversation metadata",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "conversation"
+                  ],
+                  "properties": {
+                    "conversation": {
+                      "$ref": "#/components/schemas/Conversation"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid title or tags"
+          },
+          "401": {
+            "description": "Device authentication required"
+          },
+          "403": {
+            "description": "Chat capability required"
+          },
+          "404": {
+            "description": "Conversation unavailable to the signed owner"
+          }
+        }
       }
     },
     "/v1/conversations/{conversationId}/messages": {
-      "parameters": [{ "$ref": "#/components/parameters/ConversationId" }],
+      "parameters": [
+        {
+          "$ref": "#/components/parameters/ConversationId"
+        }
+      ],
       "get": {
         "operationId": "listMessages",
-        "responses": { "200": { "description": "Display-normalized transcript", "content": { "application/json": { "schema": { "type": "object", "required": ["messages"], "properties": { "messages": { "type": "array", "items": { "$ref": "#/components/schemas/ChatMessage" } } } } } } } }
+        "responses": {
+          "200": {
+            "description": "Display-normalized transcript",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "messages"
+                  ],
+                  "properties": {
+                    "messages": {
+                      "type": "array",
+                      "items": {
+                        "$ref": "#/components/schemas/ChatMessage"
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
       },
       "post": {
         "operationId": "submitMessage",
-        "requestBody": { "required": true, "content": { "application/json": { "schema": { "$ref": "#/components/schemas/SubmitMessage" } } } },
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/SubmitMessage"
+              }
+            }
+          }
+        },
         "responses": {
-          "202": { "description": "Durable submission receipt", "content": { "application/json": { "schema": { "type": "object", "required": ["receipt"], "properties": { "receipt": { "$ref": "#/components/schemas/SubmissionReceipt" } } } } } },
-          "409": { "$ref": "#/components/responses/Error" }
+          "202": {
+            "description": "Durable submission receipt",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "receipt"
+                  ],
+                  "properties": {
+                    "receipt": {
+                      "$ref": "#/components/schemas/SubmissionReceipt"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "409": {
+            "$ref": "#/components/responses/Error"
+          }
         }
       }
     },
     "/v1/conversations/{conversationId}/cancel": {
-      "parameters": [{ "$ref": "#/components/parameters/ConversationId" }],
+      "parameters": [
+        {
+          "$ref": "#/components/parameters/ConversationId"
+        }
+      ],
       "post": {
         "operationId": "cancelConversation",
-        "requestBody": { "required": false, "content": { "application/json": { "schema": { "type": "object", "properties": { "runId": { "type": "string" } } } } } },
-        "responses": { "204": { "description": "Cancellation accepted" } }
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CancelOperation"
+              }
+            }
+          }
+        },
+        "responses": {
+          "400": {
+            "$ref": "#/components/responses/Error"
+          },
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": false,
+                  "required": [
+                    "result"
+                  ],
+                  "type": "object",
+                  "properties": {
+                    "result": {
+                      "$ref": "#/components/schemas/CancelResult"
+                    }
+                  }
+                }
+              }
+            },
+            "description": "Exact native target cancellation receipt"
+          },
+          "404": {
+            "$ref": "#/components/responses/Error"
+          },
+          "401": {
+            "$ref": "#/components/responses/Error"
+          },
+          "403": {
+            "$ref": "#/components/responses/Error"
+          },
+          "409": {
+            "$ref": "#/components/responses/Error"
+          },
+          "503": {
+            "$ref": "#/components/responses/Error"
+          }
+        }
       }
     },
     "/v1/events": {
       "get": {
         "operationId": "streamEvents",
-        "responses": { "200": { "description": "Authenticated server-sent event stream", "content": { "text/event-stream": { "schema": { "type": "string" } } } } }
+        "responses": {
+          "200": {
+            "description": "Authenticated server-sent event stream",
+            "content": {
+              "text/event-stream": {
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
+          }
+        }
       }
     },
     "/v1/admin/diagnostics": {
       "get": {
         "operationId": "getDiagnostics",
-        "responses": { "200": { "description": "Sanitized administrator diagnostics", "content": { "application/json": { "schema": { "type": "object", "additionalProperties": true } } } }, "403": { "$ref": "#/components/responses/Error" } }
+        "responses": {
+          "200": {
+            "description": "Sanitized administrator diagnostics",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "additionalProperties": true
+                }
+              }
+            }
+          },
+          "403": {
+            "$ref": "#/components/responses/Error"
+          }
+        }
+      }
+    },
+    "/ready": {
+      "get": {
+        "operationId": "getReadiness",
+        "security": [],
+        "responses": {
+          "200": {
+            "description": "Core startup and Gateway ready",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Health"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "Core dependency unavailable",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Health"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/conversations/{conversationId}/context": {
+      "parameters": [
+        {
+          "$ref": "#/components/parameters/ConversationId"
+        }
+      ],
+      "get": {
+        "operationId": "getConversationContext",
+        "responses": {
+          "200": {
+            "description": "Owner native context",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "context": {
+                      "$ref": "#/components/schemas/ConversationContext"
+                    }
+                  },
+                  "required": [
+                    "context"
+                  ],
+                  "additionalProperties": false
+                }
+              }
+            }
+          },
+          "404": {
+            "$ref": "#/components/responses/Error"
+          },
+          "503": {
+            "$ref": "#/components/responses/Error"
+          }
+        }
+      }
+    },
+    "/v1/conversations/{conversationId}/goal": {
+      "parameters": [
+        {
+          "$ref": "#/components/parameters/ConversationId"
+        }
+      ],
+      "post": {
+        "operationId": "updateConversationGoal",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/GoalOperation"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": false,
+                  "required": [
+                    "result"
+                  ],
+                  "type": "object",
+                  "properties": {
+                    "result": {
+                      "$ref": "#/components/schemas/GoalMutationResult"
+                    }
+                  }
+                }
+              }
+            },
+            "description": "Native goal control receipt"
+          },
+          "202": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": false,
+                  "required": [
+                    "result"
+                  ],
+                  "type": "object",
+                  "properties": {
+                    "result": {
+                      "$ref": "#/components/schemas/GoalMutationResult"
+                    }
+                  }
+                }
+              }
+            },
+            "description": "Queued native goal resume admission"
+          },
+          "404": {
+            "$ref": "#/components/responses/Error"
+          },
+          "409": {
+            "$ref": "#/components/responses/Error"
+          },
+          "503": {
+            "$ref": "#/components/responses/Error"
+          }
+        }
+      }
+    },
+    "/v1/conversations/{conversationId}/artifacts": {
+      "parameters": [
+        {
+          "$ref": "#/components/parameters/ConversationId"
+        }
+      ],
+      "get": {
+        "operationId": "listConversationArtifacts",
+        "responses": {
+          "200": {
+            "description": "Authorized artifact metadata",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "properties": {
+                    "artifacts": {
+                      "$ref": "#/components/schemas/ArtifactPage"
+                    }
+                  },
+                  "required": [
+                    "artifacts"
+                  ],
+                  "type": "object",
+                  "additionalProperties": false
+                }
+              }
+            }
+          },
+          "404": {
+            "$ref": "#/components/responses/Error"
+          }
+        }
+      },
+      "post": {
+        "operationId": "uploadConversationArtifact",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ArtifactInput"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Committed immutable input artifact",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "artifact": {
+                      "$ref": "#/components/schemas/Artifact"
+                    }
+                  },
+                  "required": [
+                    "artifact"
+                  ],
+                  "additionalProperties": false
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/Error"
+          },
+          "403": {
+            "$ref": "#/components/responses/Error"
+          },
+          "404": {
+            "$ref": "#/components/responses/Error"
+          },
+          "413": {
+            "$ref": "#/components/responses/Error"
+          },
+          "415": {
+            "$ref": "#/components/responses/Error"
+          },
+          "503": {
+            "$ref": "#/components/responses/Error"
+          }
+        }
+      }
+    },
+    "/v1/conversations/{conversationId}/artifacts/{artifactId}": {
+      "parameters": [
+        {
+          "$ref": "#/components/parameters/ConversationId"
+        },
+        {
+          "name": "artifactId",
+          "in": "path",
+          "required": true,
+          "schema": {
+            "type": "string"
+          }
+        }
+      ],
+      "get": {
+        "operationId": "getConversationArtifact",
+        "responses": {
+          "200": {
+            "description": "Authorized artifact metadata",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "artifact": {
+                      "$ref": "#/components/schemas/Artifact"
+                    }
+                  },
+                  "required": [
+                    "artifact"
+                  ],
+                  "additionalProperties": false
+                }
+              }
+            }
+          },
+          "404": {
+            "$ref": "#/components/responses/Error"
+          }
+        }
+      }
+    },
+    "/v1/conversations/{conversationId}/artifacts/{artifactId}/content": {
+      "parameters": [
+        {
+          "$ref": "#/components/parameters/ConversationId"
+        },
+        {
+          "name": "artifactId",
+          "in": "path",
+          "required": true,
+          "schema": {
+            "type": "string"
+          }
+        }
+      ],
+      "get": {
+        "responses": {
+          "409": {
+            "$ref": "#/components/responses/Error"
+          },
+          "200": {
+            "headers": {
+              "Cache-Control": {
+                "schema": {
+                  "type": "string"
+                },
+                "description": "private, no-store"
+              },
+              "X-Content-Type-Options": {
+                "schema": {
+                  "type": "string"
+                },
+                "description": "nosniff"
+              },
+              "Content-Security-Policy": {
+                "schema": {
+                  "type": "string"
+                },
+                "description": "sandbox; default-src 'none'"
+              }
+            },
+            "content": {
+              "image/webp": {
+                "schema": {
+                  "type": "string",
+                  "format": "binary"
+                }
+              },
+              "application/pdf": {
+                "schema": {
+                  "type": "string",
+                  "format": "binary"
+                }
+              },
+              "image/png": {
+                "schema": {
+                  "type": "string",
+                  "format": "binary"
+                }
+              },
+              "application/json": {
+                "schema": {
+                  "type": "string",
+                  "format": "binary"
+                }
+              },
+              "text/x-python": {
+                "schema": {
+                  "type": "string",
+                  "format": "binary"
+                }
+              },
+              "image/jpeg": {
+                "schema": {
+                  "type": "string",
+                  "format": "binary"
+                }
+              },
+              "text/html": {
+                "schema": {
+                  "type": "string",
+                  "format": "binary"
+                }
+              },
+              "text/csv": {
+                "schema": {
+                  "type": "string",
+                  "format": "binary"
+                }
+              },
+              "text/plain": {
+                "schema": {
+                  "type": "string",
+                  "format": "binary"
+                }
+              },
+              "image/svg+xml": {
+                "schema": {
+                  "type": "string",
+                  "format": "binary"
+                }
+              }
+            },
+            "description": "Authorized immutable media bytes; render only in a constrained viewer"
+          },
+          "404": {
+            "$ref": "#/components/responses/Error"
+          },
+          "401": {
+            "$ref": "#/components/responses/Error"
+          },
+          "403": {
+            "$ref": "#/components/responses/Error"
+          },
+          "415": {
+            "$ref": "#/components/responses/Error"
+          },
+          "503": {
+            "$ref": "#/components/responses/Error"
+          }
+        },
+        "operationId": "getConversationArtifactContent",
+        "x-response-kind": "bytes"
+      }
+    },
+    "/v1/admin/platform": {
+      "get": {
+        "operationId": "getPlatformReadiness",
+        "responses": {
+          "200": {
+            "description": "Administrator-only redacted dependency/profile readiness",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object"
+                }
+              }
+            }
+          },
+          "403": {
+            "$ref": "#/components/responses/Error"
+          }
+        }
+      }
+    },
+    "/v1/conversations/{conversationId}/checkpoint": {
+      "parameters": [
+        {
+          "$ref": "#/components/parameters/ConversationId"
+        }
+      ],
+      "get": {
+        "operationId": "getConversationCheckpoint",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": false,
+                  "required": [
+                    "checkpoint"
+                  ],
+                  "type": "object",
+                  "properties": {
+                    "checkpoint": {
+                      "anyOf": [
+                        {
+                          "$ref": "#/components/schemas/Checkpoint"
+                        },
+                        {
+                          "type": "null"
+                        }
+                      ]
+                    }
+                  }
+                }
+              }
+            },
+            "description": "Current native-bound checkpoint pointer"
+          },
+          "404": {
+            "$ref": "#/components/responses/Error"
+          },
+          "503": {
+            "$ref": "#/components/responses/Error"
+          }
+        }
+      },
+      "put": {
+        "deprecated": true,
+        "responses": {
+          "410": {
+            "$ref": "#/components/responses/Error"
+          }
+        },
+        "operationId": "updateConversationCheckpoint",
+        "description": "Retired client mutation. Always returns 410; task metadata changes are owned by the admitted native application boundary."
+      }
+    },
+    "/v1/admin/domains": {
+      "get": {
+        "operationId": "getDomainReadiness",
+        "description": "Protected operator-only structural domain readiness and safe tool metadata. No provider or model workflows are exercised.",
+        "responses": {
+          "200": {
+            "description": "Domain graph initialized; credential and functional readiness are reported separately.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "readiness",
+                    "tools"
+                  ],
+                  "properties": {
+                    "readiness": {
+                      "type": "object",
+                      "additionalProperties": true
+                    },
+                    "tools": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "required": [
+                          "name",
+                          "domain",
+                          "effect",
+                          "description"
+                        ],
+                        "properties": {
+                          "name": {
+                            "type": "string"
+                          },
+                          "domain": {
+                            "type": "string"
+                          },
+                          "effect": {
+                            "enum": [
+                              "read",
+                              "write"
+                            ]
+                          },
+                          "description": {
+                            "type": "string"
+                          }
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Operator diagnostic capability required."
+          },
+          "503": {
+            "description": "Domain graph unavailable."
+          }
+        }
+      }
+    },
+    "/v1/conversations/{conversationId}/workspace": {
+      "get": {
+        "x-device-kind": "personal",
+        "responses": {
+          "400": {
+            "$ref": "#/components/responses/Error"
+          },
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TaskWorkspace"
+                }
+              }
+            },
+            "description": "Current bounded read-only projection"
+          },
+          "404": {
+            "$ref": "#/components/responses/Error"
+          },
+          "401": {
+            "$ref": "#/components/responses/Error"
+          },
+          "403": {
+            "$ref": "#/components/responses/Error"
+          },
+          "409": {
+            "$ref": "#/components/responses/Error"
+          },
+          "503": {
+            "$ref": "#/components/responses/Error"
+          }
+        },
+        "operationId": "getConversationWorkspace",
+        "description": "Read-only view. Scope, enrolled device, profile grants and resource revision are rechecked on every read."
+      },
+      "parameters": [
+        {
+          "$ref": "#/components/parameters/ConversationId"
+        }
+      ]
+    },
+    "/v1/contacts": {
+      "get": {
+        "x-device-kind": "personal",
+        "responses": {
+          "400": {
+            "$ref": "#/components/responses/Error"
+          },
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ContactsPage"
+                }
+              }
+            },
+            "description": "Current bounded read-only projection"
+          },
+          "404": {
+            "$ref": "#/components/responses/Error"
+          },
+          "401": {
+            "$ref": "#/components/responses/Error"
+          },
+          "403": {
+            "$ref": "#/components/responses/Error"
+          },
+          "409": {
+            "$ref": "#/components/responses/Error"
+          },
+          "503": {
+            "$ref": "#/components/responses/Error"
+          }
+        },
+        "operationId": "searchContacts",
+        "description": "Read-only view. Scope, enrolled device, profile grants and resource revision are rechecked on every read."
+      },
+      "parameters": [
+        {
+          "name": "query",
+          "required": false,
+          "schema": {
+            "type": "string",
+            "maxLength": 300
+          },
+          "in": "query"
+        },
+        {
+          "name": "limit",
+          "required": false,
+          "schema": {
+            "default": 50,
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 50
+          },
+          "in": "query"
+        }
+      ]
+    },
+    "/v1/contacts/{contactId}": {
+      "get": {
+        "x-device-kind": "personal",
+        "responses": {
+          "400": {
+            "$ref": "#/components/responses/Error"
+          },
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ContactDetail"
+                }
+              }
+            },
+            "description": "Current bounded read-only projection"
+          },
+          "404": {
+            "$ref": "#/components/responses/Error"
+          },
+          "401": {
+            "$ref": "#/components/responses/Error"
+          },
+          "403": {
+            "$ref": "#/components/responses/Error"
+          },
+          "409": {
+            "$ref": "#/components/responses/Error"
+          },
+          "503": {
+            "$ref": "#/components/responses/Error"
+          }
+        },
+        "operationId": "getContact",
+        "description": "Read-only view. Scope, enrolled device, profile grants and resource revision are rechecked on every read."
+      },
+      "parameters": [
+        {
+          "name": "contactId",
+          "required": true,
+          "schema": {
+            "minLength": 1,
+            "pattern": "^contact-[a-f0-9]{32}$",
+            "type": "string"
+          },
+          "in": "path"
+        }
+      ]
+    },
+    "/v1/lists": {
+      "get": {
+        "x-device-kind": "personal",
+        "responses": {
+          "400": {
+            "$ref": "#/components/responses/Error"
+          },
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ListsView"
+                }
+              }
+            },
+            "description": "Current bounded read-only projection"
+          },
+          "404": {
+            "$ref": "#/components/responses/Error"
+          },
+          "401": {
+            "$ref": "#/components/responses/Error"
+          },
+          "403": {
+            "$ref": "#/components/responses/Error"
+          },
+          "409": {
+            "$ref": "#/components/responses/Error"
+          },
+          "503": {
+            "$ref": "#/components/responses/Error"
+          }
+        },
+        "operationId": "getLists",
+        "description": "Read-only view. Scope, enrolled device, profile grants and resource revision are rechecked on every read."
+      },
+      "parameters": [
+        {
+          "name": "scope",
+          "required": false,
+          "schema": {
+            "$ref": "#/components/schemas/ClientReadScope",
+            "default": "household"
+          },
+          "in": "query"
+        }
+      ]
+    },
+    "/v1/wiki": {
+      "get": {
+        "x-device-kind": "personal",
+        "responses": {
+          "400": {
+            "$ref": "#/components/responses/Error"
+          },
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/WikiSearchView"
+                }
+              }
+            },
+            "description": "Current bounded read-only projection"
+          },
+          "404": {
+            "$ref": "#/components/responses/Error"
+          },
+          "401": {
+            "$ref": "#/components/responses/Error"
+          },
+          "403": {
+            "$ref": "#/components/responses/Error"
+          },
+          "409": {
+            "$ref": "#/components/responses/Error"
+          },
+          "503": {
+            "$ref": "#/components/responses/Error"
+          }
+        },
+        "operationId": "searchWiki",
+        "description": "Read-only view. Scope, enrolled device, profile grants and resource revision are rechecked on every read."
+      },
+      "parameters": [
+        {
+          "name": "scope",
+          "required": false,
+          "schema": {
+            "$ref": "#/components/schemas/ClientReadScope",
+            "default": "household"
+          },
+          "in": "query"
+        },
+        {
+          "name": "query",
+          "required": false,
+          "schema": {
+            "type": "string",
+            "maxLength": 2000
+          },
+          "in": "query"
+        },
+        {
+          "name": "limit",
+          "required": false,
+          "schema": {
+            "default": 50,
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 50
+          },
+          "in": "query"
+        }
+      ]
+    },
+    "/v1/wiki/{pageId}": {
+      "get": {
+        "x-device-kind": "personal",
+        "responses": {
+          "400": {
+            "$ref": "#/components/responses/Error"
+          },
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/WikiPageView"
+                }
+              }
+            },
+            "description": "Current bounded read-only projection"
+          },
+          "404": {
+            "$ref": "#/components/responses/Error"
+          },
+          "401": {
+            "$ref": "#/components/responses/Error"
+          },
+          "403": {
+            "$ref": "#/components/responses/Error"
+          },
+          "409": {
+            "$ref": "#/components/responses/Error"
+          },
+          "503": {
+            "$ref": "#/components/responses/Error"
+          }
+        },
+        "operationId": "getWikiPage",
+        "description": "Read one managed household-topic page. pageId is a single URI-encoded syntheses/household-topic-*.md lookup; arbitrary filesystem paths and broad native wiki access are rejected."
+      },
+      "parameters": [
+        {
+          "name": "pageId",
+          "required": true,
+          "schema": {
+            "type": "string",
+            "minLength": 1
+          },
+          "in": "path"
+        },
+        {
+          "name": "scope",
+          "required": false,
+          "schema": {
+            "$ref": "#/components/schemas/ClientReadScope",
+            "default": "household"
+          },
+          "in": "query"
+        }
+      ]
+    },
+    "/v1/receipts/review": {
+      "get": {
+        "x-device-kind": "personal",
+        "responses": {
+          "400": {
+            "$ref": "#/components/responses/Error"
+          },
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ReceiptReviewView"
+                }
+              }
+            },
+            "description": "Current bounded read-only projection"
+          },
+          "404": {
+            "$ref": "#/components/responses/Error"
+          },
+          "401": {
+            "$ref": "#/components/responses/Error"
+          },
+          "403": {
+            "$ref": "#/components/responses/Error"
+          },
+          "409": {
+            "$ref": "#/components/responses/Error"
+          },
+          "503": {
+            "$ref": "#/components/responses/Error"
+          }
+        },
+        "operationId": "getReceiptReview",
+        "description": "Read-only view. Scope, enrolled device, profile grants and resource revision are rechecked on every read."
+      },
+      "parameters": [
+        {
+          "name": "limit",
+          "required": false,
+          "schema": {
+            "default": 100,
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 100
+          },
+          "in": "query"
+        }
+      ]
+    },
+    "/v1/contacts/{contactId}/sources/{artifactId}/content": {
+      "get": {
+        "responses": {
+          "409": {
+            "$ref": "#/components/responses/Error"
+          },
+          "200": {
+            "headers": {
+              "Cache-Control": {
+                "schema": {
+                  "type": "string"
+                },
+                "description": "private, no-store"
+              },
+              "X-Content-Type-Options": {
+                "schema": {
+                  "type": "string"
+                },
+                "description": "nosniff"
+              },
+              "Content-Security-Policy": {
+                "schema": {
+                  "type": "string"
+                },
+                "description": "sandbox; default-src 'none'"
+              }
+            },
+            "content": {
+              "image/jpeg": {
+                "schema": {
+                  "type": "string",
+                  "format": "binary"
+                }
+              },
+              "image/webp": {
+                "schema": {
+                  "type": "string",
+                  "format": "binary"
+                }
+              },
+              "application/pdf": {
+                "schema": {
+                  "type": "string",
+                  "format": "binary"
+                }
+              },
+              "image/png": {
+                "schema": {
+                  "type": "string",
+                  "format": "binary"
+                }
+              }
+            },
+            "description": "Authorized immutable media bytes; render only in a constrained viewer"
+          },
+          "404": {
+            "$ref": "#/components/responses/Error"
+          },
+          "401": {
+            "$ref": "#/components/responses/Error"
+          },
+          "403": {
+            "$ref": "#/components/responses/Error"
+          },
+          "415": {
+            "$ref": "#/components/responses/Error"
+          },
+          "503": {
+            "$ref": "#/components/responses/Error"
+          }
+        },
+        "operationId": "getContactSourceContent",
+        "x-response-kind": "bytes"
+      },
+      "parameters": [
+        {
+          "name": "contactId",
+          "required": true,
+          "schema": {
+            "minLength": 1,
+            "pattern": "^contact-[a-f0-9]{32}$",
+            "type": "string"
+          },
+          "in": "path"
+        },
+        {
+          "name": "artifactId",
+          "required": true,
+          "schema": {
+            "minLength": 1,
+            "pattern": "^artifact-[a-f0-9]{64}$",
+            "type": "string"
+          },
+          "in": "path"
+        }
+      ]
+    },
+    "/v1/display/enrollment/claim": {
+      "post": {
+        "x-device-kind": "display",
+        "responses": {
+          "201": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DisplayEnrollmentResult"
+                }
+              }
+            },
+            "description": "Read-only display device enrolled; invitation must have display kind"
+          },
+          "400": {
+            "$ref": "#/components/responses/Error"
+          },
+          "401": {
+            "$ref": "#/components/responses/Error"
+          }
+        },
+        "operationId": "claimDisplayEnrollment",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/EnrollmentClaim"
+              }
+            }
+          }
+        },
+        "security": []
+      }
+    },
+    "/v1/display/snapshot": {
+      "get": {
+        "x-device-kind": "display",
+        "responses": {
+          "400": {
+            "$ref": "#/components/responses/Error"
+          },
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DisplaySnapshot"
+                }
+              }
+            },
+            "description": "Current bounded read-only projection"
+          },
+          "404": {
+            "$ref": "#/components/responses/Error"
+          },
+          "401": {
+            "$ref": "#/components/responses/Error"
+          },
+          "403": {
+            "$ref": "#/components/responses/Error"
+          },
+          "409": {
+            "$ref": "#/components/responses/Error"
+          },
+          "503": {
+            "$ref": "#/components/responses/Error"
+          }
+        },
+        "operationId": "getDisplaySnapshot",
+        "description": "Read-only view. Scope, enrolled device, profile grants and resource revision are rechecked on every read."
+      }
+    },
+    "/v1/display/publications/{publicationId}/content": {
+      "get": {
+        "x-device-kind": "display",
+        "responses": {
+          "409": {
+            "$ref": "#/components/responses/Error"
+          },
+          "200": {
+            "headers": {
+              "Cache-Control": {
+                "schema": {
+                  "type": "string"
+                },
+                "description": "private, no-store"
+              },
+              "X-Content-Type-Options": {
+                "schema": {
+                  "type": "string"
+                },
+                "description": "nosniff"
+              },
+              "Content-Security-Policy": {
+                "schema": {
+                  "type": "string"
+                },
+                "description": "sandbox; default-src 'none'"
+              }
+            },
+            "content": {
+              "text/plain": {
+                "schema": {
+                  "type": "string",
+                  "format": "binary"
+                }
+              },
+              "image/jpeg": {
+                "schema": {
+                  "type": "string",
+                  "format": "binary"
+                }
+              },
+              "image/webp": {
+                "schema": {
+                  "type": "string",
+                  "format": "binary"
+                }
+              },
+              "image/png": {
+                "schema": {
+                  "type": "string",
+                  "format": "binary"
+                }
+              }
+            },
+            "description": "Authorized immutable media bytes; render only in a constrained viewer"
+          },
+          "404": {
+            "$ref": "#/components/responses/Error"
+          },
+          "401": {
+            "$ref": "#/components/responses/Error"
+          },
+          "403": {
+            "$ref": "#/components/responses/Error"
+          },
+          "415": {
+            "$ref": "#/components/responses/Error"
+          },
+          "503": {
+            "$ref": "#/components/responses/Error"
+          }
+        },
+        "operationId": "getDisplayPublicationContent",
+        "x-response-kind": "bytes"
+      },
+      "parameters": [
+        {
+          "name": "publicationId",
+          "required": true,
+          "schema": {
+            "minLength": 1,
+            "pattern": "^display-[a-f0-9]{64}$",
+            "type": "string"
+          },
+          "in": "path"
+        }
+      ]
+    },
+    "/v1/fitbit": {
+      "get": {
+        "operationId": "getMyFitbitStatus",
+        "description": "Signed personal devices only. Server resolves the operator-configured person-to-guest mapping; no client target or account selector. Process/session state does not assert tracker sync.",
+        "responses": {
+          "200": {
+            "description": "Sanitized own Fitbit session status",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "fitbit"
+                  ],
+                  "properties": {
+                    "fitbit": {
+                      "$ref": "#/components/schemas/FitbitSnapshot"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/Error"
+          },
+          "401": {
+            "$ref": "#/components/responses/Error"
+          },
+          "403": {
+            "$ref": "#/components/responses/Error"
+          },
+          "409": {
+            "$ref": "#/components/responses/Error"
+          },
+          "503": {
+            "$ref": "#/components/responses/Error"
+          }
+        }
+      }
+    },
+    "/v1/fitbit/sync": {
+      "post": {
+        "operationId": "startMyFitbitSyncSession",
+        "description": "Controls only the authenticated person's configured guest. Stable device-bound operation IDs are persisted; uncertain effects are not blindly replayed.",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/FitbitSyncRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Previously committed request receipt; read current status separately"
+          },
+          "202": {
+            "description": "Native session control accepted; tracker sync is not yet verified"
+          },
+          "400": {
+            "$ref": "#/components/responses/Error"
+          },
+          "401": {
+            "$ref": "#/components/responses/Error"
+          },
+          "403": {
+            "$ref": "#/components/responses/Error"
+          },
+          "409": {
+            "$ref": "#/components/responses/Error"
+          },
+          "503": {
+            "$ref": "#/components/responses/Error"
+          }
+        }
+      },
+      "delete": {
+        "operationId": "stopMyFitbitSyncSession",
+        "description": "Controls only the authenticated person's configured guest. Stable device-bound operation IDs are persisted; uncertain effects are not blindly replayed.",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/FitbitSyncRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Previously committed request receipt; read current status separately"
+          },
+          "202": {
+            "description": "Native session control accepted; tracker sync is not yet verified"
+          },
+          "400": {
+            "$ref": "#/components/responses/Error"
+          },
+          "401": {
+            "$ref": "#/components/responses/Error"
+          },
+          "403": {
+            "$ref": "#/components/responses/Error"
+          },
+          "409": {
+            "$ref": "#/components/responses/Error"
+          },
+          "503": {
+            "$ref": "#/components/responses/Error"
+          }
+        }
+      }
+    },
+    "/v1/connections": {
+      "get": {
+        "operationId": "getConnections",
+        "description": "Owner-only connection metadata and enforced isolation readiness.",
+        "responses": {
+          "200": {
+            "description": "Status only, with no credentials or vault secret IDs"
+          },
+          "403": {
+            "description": "Owner required"
+          }
+        }
+      }
+    },
+    "/v1/connections/bitwarden": {
+      "post": {
+        "operationId": "configureBitwarden",
+        "description": "Owner-only isolated HTTPS connection management. Values bypass all chat and submission storage.",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "additionalProperties": false,
+                "required": [
+                  "operationId",
+                  "accessToken",
+                  "organizationId",
+                  "projectId"
+                ],
+                "properties": {
+                  "operationId": {
+                    "type": "string",
+                    "pattern": "^[A-Za-z0-9][A-Za-z0-9._-]{7,95}$"
+                  },
+                  "accessToken": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 8192,
+                    "format": "password",
+                    "writeOnly": true
+                  },
+                  "organizationId": {
+                    "type": "string",
+                    "format": "uuid"
+                  },
+                  "projectId": {
+                    "type": "string",
+                    "format": "uuid"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Non-secret connection status"
+          },
+          "403": {
+            "description": "Owner, enrolled device or HTTPS required"
+          },
+          "409": {
+            "description": "Reconciliation or setup required"
+          },
+          "503": {
+            "description": "Protected credential service unavailable"
+          }
+        }
+      }
+    },
+    "/v1/connections/password": {
+      "post": {
+        "operationId": "saveConnectionLogin",
+        "description": "Owner-only isolated HTTPS connection management. Values bypass all chat and submission storage.",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "additionalProperties": false,
+                "required": [
+                  "operationId",
+                  "label",
+                  "username",
+                  "password",
+                  "origin"
+                ],
+                "properties": {
+                  "operationId": {
+                    "type": "string",
+                    "pattern": "^[A-Za-z0-9][A-Za-z0-9._-]{7,95}$"
+                  },
+                  "label": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 120
+                  },
+                  "username": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 512
+                  },
+                  "password": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 16384,
+                    "format": "password",
+                    "writeOnly": true
+                  },
+                  "origin": {
+                    "type": "string",
+                    "format": "uri"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Non-secret connection status"
+          },
+          "403": {
+            "description": "Owner, enrolled device or HTTPS required"
+          },
+          "409": {
+            "description": "Reconciliation or setup required"
+          },
+          "503": {
+            "description": "Protected credential service unavailable"
+          }
+        }
+      }
+    },
+    "/v1/connections/google/config": {
+      "post": {
+        "operationId": "configureGoogleOAuth",
+        "description": "Owner-only isolated HTTPS connection management. Values bypass all chat and submission storage.",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "additionalProperties": false,
+                "required": [
+                  "operationId",
+                  "clientId",
+                  "clientSecret",
+                  "redirectUri"
+                ],
+                "properties": {
+                  "operationId": {
+                    "type": "string",
+                    "pattern": "^[A-Za-z0-9][A-Za-z0-9._-]{7,95}$"
+                  },
+                  "clientId": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 512
+                  },
+                  "clientSecret": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 4096,
+                    "format": "password",
+                    "writeOnly": true
+                  },
+                  "redirectUri": {
+                    "type": "string",
+                    "format": "uri"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Non-secret connection status"
+          },
+          "403": {
+            "description": "Owner, enrolled device or HTTPS required"
+          },
+          "409": {
+            "description": "Reconciliation or setup required"
+          },
+          "503": {
+            "description": "Protected credential service unavailable"
+          }
+        }
+      }
+    },
+    "/v1/connections/google/start": {
+      "post": {
+        "operationId": "startGoogleOAuth",
+        "description": "Owner-only isolated HTTPS connection management. Values bypass all chat and submission storage.",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "additionalProperties": false,
+                "required": [
+                  "operationId",
+                  "label",
+                  "expectedEmail",
+                  "preset"
+                ],
+                "properties": {
+                  "operationId": {
+                    "type": "string",
+                    "pattern": "^[A-Za-z0-9][A-Za-z0-9._-]{7,95}$"
+                  },
+                  "label": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 120
+                  },
+                  "expectedEmail": {
+                    "type": "string",
+                    "format": "email"
+                  },
+                  "preset": {
+                    "type": "string",
+                    "enum": [
+                      "gmail_read",
+                      "calendar_read",
+                      "household_calendar_manage"
+                    ]
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Non-secret connection status"
+          },
+          "403": {
+            "description": "Owner, enrolled device or HTTPS required"
+          },
+          "409": {
+            "description": "Reconciliation or setup required"
+          },
+          "503": {
+            "description": "Protected credential service unavailable"
+          }
+        }
+      }
+    },
+    "/v1/connections/google/complete": {
+      "post": {
+        "operationId": "completeGoogleOAuth",
+        "description": "Owner-only isolated HTTPS connection management. Values bypass all chat and submission storage.",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "additionalProperties": false,
+                "required": [
+                  "flowId",
+                  "callbackUrl"
+                ],
+                "properties": {
+                  "flowId": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 96
+                  },
+                  "callbackUrl": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 8192,
+                    "format": "password",
+                    "writeOnly": true
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Non-secret connection status"
+          },
+          "403": {
+            "description": "Owner, enrolled device or HTTPS required"
+          },
+          "409": {
+            "description": "Reconciliation or setup required"
+          },
+          "503": {
+            "description": "Protected credential service unavailable"
+          }
+        }
+      }
+    },
+    "/v1/connections/google/callback": {
+      "get": {
+        "operationId": "receiveGoogleOAuthCallback",
+        "security": [],
+        "description": "Exact configured HTTPS callback with one-time state, PKCE, verified Google identity and current initiating device authority. Never reflects authorization codes.",
+        "responses": {
+          "200": {
+            "description": "Static completion page"
+          },
+          "403": {
+            "description": "Authority or state rejected"
+          },
+          "409": {
+            "description": "Consent expired or restart required"
+          }
+        }
+      }
+    },
+    "/v1/connections/{connectionId}": {
+      "delete": {
+        "operationId": "disconnectConnection",
+        "parameters": [
+          {
+            "name": "connectionId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 128
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "additionalProperties": false,
+                "required": [
+                  "operationId"
+                ],
+                "properties": {
+                  "operationId": {
+                    "type": "string",
+                    "pattern": "^[A-Za-z0-9][A-Za-z0-9._-]{7,95}$"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Disconnected metadata. Google grant revocation completed before success."
+          },
+          "403": {
+            "description": "Owner required"
+          },
+          "503": {
+            "description": "Outcome needs reconciliation"
+          }
+        }
+      }
+    },
+    "/v1/conversation-folders": {
+      "get": {
+        "operationId": "listConversationFolders",
+        "summary": "List the signed profile's private conversation folders",
+        "responses": {
+          "200": {
+            "description": "Private folders",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "folders"
+                  ],
+                  "properties": {
+                    "folders": {
+                      "type": "array",
+                      "items": {
+                        "$ref": "#/components/schemas/ConversationFolder"
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid sidebar metadata"
+          },
+          "401": {
+            "description": "Signed device authentication required"
+          },
+          "403": {
+            "description": "Chat capability required"
+          },
+          "404": {
+            "description": "Conversation or folder not visible to the current profile"
+          },
+          "409": {
+            "description": "Conflicting folder create identity or active conversation"
+          },
+          "503": {
+            "description": "Native conversation state cannot be verified"
+          }
+        }
+      },
+      "post": {
+        "operationId": "createConversationFolder",
+        "summary": "Create a folder with a stable client ID; exact create retries read back the same folder",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CreateConversationFolder"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Current profile folder",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "folder"
+                  ],
+                  "properties": {
+                    "folder": {
+                      "$ref": "#/components/schemas/ConversationFolder"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "200": {
+            "description": "Current profile folder",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "folder"
+                  ],
+                  "properties": {
+                    "folder": {
+                      "$ref": "#/components/schemas/ConversationFolder"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid sidebar metadata"
+          },
+          "401": {
+            "description": "Signed device authentication required"
+          },
+          "403": {
+            "description": "Chat capability required"
+          },
+          "404": {
+            "description": "Conversation or folder not visible to the current profile"
+          },
+          "409": {
+            "description": "Conflicting folder create identity or active conversation"
+          },
+          "503": {
+            "description": "Native conversation state cannot be verified"
+          }
+        }
+      }
+    },
+    "/v1/conversation-folders/{folderId}": {
+      "parameters": [
+        {
+          "name": "folderId",
+          "in": "path",
+          "required": true,
+          "schema": {
+            "type": "string"
+          }
+        }
+      ],
+      "put": {
+        "operationId": "renameConversationFolder",
+        "summary": "Rename the signed profile's folder",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/RenameConversationFolder"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Current profile folder",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "folder"
+                  ],
+                  "properties": {
+                    "folder": {
+                      "$ref": "#/components/schemas/ConversationFolder"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid sidebar metadata"
+          },
+          "401": {
+            "description": "Signed device authentication required"
+          },
+          "403": {
+            "description": "Chat capability required"
+          },
+          "404": {
+            "description": "Conversation or folder not visible to the current profile"
+          },
+          "409": {
+            "description": "Conflicting folder create identity or active conversation"
+          },
+          "503": {
+            "description": "Native conversation state cannot be verified"
+          }
+        }
+      },
+      "delete": {
+        "operationId": "deleteConversationFolder",
+        "summary": "Remove the signed profile's folder and unfile its chats without deleting conversations",
+        "responses": {
+          "200": {
+            "description": "Folder removed; conversations preserved",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "deleted"
+                  ],
+                  "properties": {
+                    "deleted": {
+                      "const": true
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid sidebar metadata"
+          },
+          "401": {
+            "description": "Signed device authentication required"
+          },
+          "403": {
+            "description": "Chat capability required"
+          },
+          "404": {
+            "description": "Conversation or folder not visible to the current profile"
+          },
+          "409": {
+            "description": "Conflicting folder create identity or active conversation"
+          },
+          "503": {
+            "description": "Native conversation state cannot be verified"
+          }
+        }
+      }
+    },
+    "/v1/conversations/{conversationId}/folder": {
+      "parameters": [
+        {
+          "$ref": "#/components/parameters/ConversationId"
+        }
+      ],
+      "put": {
+        "operationId": "moveConversationToFolder",
+        "summary": "Place a visible conversation in this profile's folder without changing access",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ConversationFolderPlacement"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Updated private sidebar placement",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "conversation"
+                  ],
+                  "properties": {
+                    "conversation": {
+                      "$ref": "#/components/schemas/Conversation"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid sidebar metadata"
+          },
+          "401": {
+            "description": "Signed device authentication required"
+          },
+          "403": {
+            "description": "Chat capability required"
+          },
+          "404": {
+            "description": "Conversation or folder not visible to the current profile"
+          },
+          "409": {
+            "description": "Conflicting folder create identity or active conversation"
+          },
+          "503": {
+            "description": "Native conversation state cannot be verified"
+          }
+        }
+      }
+    },
+    "/v1/conversations/{conversationId}": {
+      "parameters": [
+        {
+          "$ref": "#/components/parameters/ConversationId"
+        }
+      ],
+      "delete": {
+        "operationId": "deleteConversation",
+        "summary": "Remove an idle owned conversation from the app while retaining native history and audit",
+        "responses": {
+          "200": {
+            "description": "Conversation removed; retained records are not erased",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "deleted",
+                    "retained"
+                  ],
+                  "properties": {
+                    "deleted": {
+                      "const": true
+                    },
+                    "retained": {
+                      "const": true
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid sidebar metadata"
+          },
+          "401": {
+            "description": "Signed device authentication required"
+          },
+          "403": {
+            "description": "Chat capability required"
+          },
+          "404": {
+            "description": "Conversation or folder not visible to the current profile"
+          },
+          "409": {
+            "description": "Conflicting folder create identity or active conversation"
+          },
+          "503": {
+            "description": "Native conversation state cannot be verified"
+          }
+        }
       }
     }
   },
   "components": {
     "securitySchemes": {
-      "DeviceId": { "type": "apiKey", "in": "header", "name": "X-Hardy-Device-Id" },
-      "DeviceTimestamp": { "type": "apiKey", "in": "header", "name": "X-Hardy-Timestamp" },
-      "DeviceNonce": { "type": "apiKey", "in": "header", "name": "X-Hardy-Nonce" },
-      "DeviceSignature": { "type": "apiKey", "in": "header", "name": "X-Hardy-Signature" }
+      "DeviceId": {
+        "type": "apiKey",
+        "in": "header",
+        "name": "X-Hardy-Device-Id",
+        "description": "Enrolled device id. Personal and display device kinds have separate server-enforced routes; profile ids are not caller-selected."
+      },
+      "DeviceTimestamp": {
+        "type": "apiKey",
+        "in": "header",
+        "name": "X-Hardy-Timestamp",
+        "description": "13-digit Unix epoch milliseconds, accepted within five minutes of server time."
+      },
+      "DeviceNonce": {
+        "type": "apiKey",
+        "in": "header",
+        "name": "X-Hardy-Nonce",
+        "description": "Fresh single-use nonce, 16\u2013128 characters, consumed durably for this enrolled device."
+      },
+      "DeviceSignature": {
+        "type": "apiKey",
+        "in": "header",
+        "name": "X-Hardy-Signature",
+        "description": "Base64 DER ECDSA P-256/SHA-256 signature over UTF-8 lines joined by LF: uppercase METHOD, exact request path including encoded query, timestamp, nonce, lowercase SHA-256 hex of exact body bytes. Empty bodies use SHA-256 of zero bytes. The same path/body bytes must be sent after signing."
+      }
     },
     "parameters": {
-      "ConversationId": { "name": "conversationId", "in": "path", "required": true, "schema": { "type": "string" } }
+      "ConversationId": {
+        "name": "conversationId",
+        "in": "path",
+        "required": true,
+        "schema": {
+          "type": "string"
+        }
+      }
     },
     "responses": {
-      "Error": { "description": "Error", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/Error" } } } }
+      "Error": {
+        "description": "Error",
+        "content": {
+          "application/json": {
+            "schema": {
+              "$ref": "#/components/schemas/Error"
+            }
+          }
+        }
+      }
     },
     "schemas": {
-      "Error": { "type": "object", "required": ["error"], "properties": { "error": { "type": "string" } }, "additionalProperties": true },
-      "Health": { "type": "object", "required": ["status", "service", "version", "adapter"], "properties": { "status": { "type": "string" }, "service": { "type": "string" }, "version": { "type": "string" }, "adapter": { "enum": ["mock", "openclaw"] }, "adapterStatus": { "type": "object", "additionalProperties": true } } },
-      "Role": { "enum": ["admin", "adult", "child"] },
-      "ProfileStatus": { "enum": ["available", "working", "queued", "paused", "offline"] },
-      "Capability": { "enum": ["chat", "voiceInput", "attachImages", "viewHouseholdStatus", "viewDiagnostics", "manageAccess"] },
+      "Error": {
+        "type": "object",
+        "required": [
+          "error"
+        ],
+        "properties": {
+          "error": {
+            "type": "string"
+          }
+        },
+        "additionalProperties": true
+      },
+      "Health": {
+        "type": "object",
+        "required": [
+          "status",
+          "service",
+          "version",
+          "adapter"
+        ],
+        "properties": {
+          "status": {
+            "type": "string"
+          },
+          "service": {
+            "type": "string"
+          },
+          "version": {
+            "type": "string"
+          },
+          "adapter": {
+            "enum": [
+              "mock",
+              "openclaw"
+            ]
+          },
+          "adapterStatus": {
+            "type": "object",
+            "additionalProperties": true
+          },
+          "ready": {
+            "type": "boolean"
+          },
+          "startup": {
+            "type": "string"
+          }
+        }
+      },
+      "Role": {
+        "enum": [
+          "admin",
+          "adult",
+          "child"
+        ]
+      },
+      "ProfileStatus": {
+        "enum": [
+          "available",
+          "working",
+          "queued",
+          "paused",
+          "offline"
+        ]
+      },
+      "Capability": {
+        "enum": [
+          "chat",
+          "voiceInput",
+          "attachImages",
+          "viewHouseholdStatus",
+          "viewDiagnostics",
+          "manageAccess"
+        ]
+      },
       "Profile": {
         "type": "object",
-        "required": ["id", "displayName", "initials", "agentId", "role", "color", "status", "statusDetail", "capabilities"],
+        "required": [
+          "id",
+          "displayName",
+          "initials",
+          "agentId",
+          "role",
+          "color",
+          "status",
+          "statusDetail",
+          "capabilities"
+        ],
         "properties": {
-          "id": { "type": "string" }, "displayName": { "type": "string" }, "initials": { "type": "string" },
-          "agentId": { "type": "string" }, "role": { "$ref": "#/components/schemas/Role" }, "color": { "type": "string" },
-          "status": { "$ref": "#/components/schemas/ProfileStatus" }, "statusDetail": { "type": "string" },
-          "capabilities": { "type": "array", "items": { "$ref": "#/components/schemas/Capability" }, "uniqueItems": true }
+          "id": {
+            "type": "string"
+          },
+          "displayName": {
+            "type": "string"
+          },
+          "initials": {
+            "type": "string"
+          },
+          "agentId": {
+            "type": "string"
+          },
+          "role": {
+            "$ref": "#/components/schemas/Role"
+          },
+          "color": {
+            "type": "string"
+          },
+          "status": {
+            "$ref": "#/components/schemas/ProfileStatus"
+          },
+          "statusDetail": {
+            "type": "string"
+          },
+          "capabilities": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/Capability"
+            },
+            "uniqueItems": true
+          }
         }
       },
       "ProfileSummary": {
         "type": "object",
-        "required": ["id", "displayName", "initials", "color", "status", "statusDetail"],
-        "properties": { "id": { "type": "string" }, "displayName": { "type": "string" }, "initials": { "type": "string" }, "color": { "type": "string" }, "status": { "$ref": "#/components/schemas/ProfileStatus" }, "statusDetail": { "type": "string" } }
+        "required": [
+          "id",
+          "displayName",
+          "initials",
+          "color",
+          "status",
+          "statusDetail"
+        ],
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "displayName": {
+            "type": "string"
+          },
+          "initials": {
+            "type": "string"
+          },
+          "color": {
+            "type": "string"
+          },
+          "status": {
+            "$ref": "#/components/schemas/ProfileStatus"
+          },
+          "statusDetail": {
+            "type": "string"
+          }
+        }
       },
       "HouseholdSnapshot": {
         "type": "object",
-        "required": ["maxActiveRuns", "activeRuns", "queuedRuns", "profiles"],
-        "properties": { "maxActiveRuns": { "type": "integer" }, "activeRuns": { "type": "integer" }, "queuedRuns": { "type": "integer" }, "profiles": { "type": "array", "items": { "$ref": "#/components/schemas/ProfileSummary" } } }
+        "required": [
+          "maxActiveRuns",
+          "activeRuns",
+          "queuedRuns",
+          "profiles"
+        ],
+        "properties": {
+          "maxActiveRuns": {
+            "type": "integer"
+          },
+          "activeRuns": {
+            "type": "integer"
+          },
+          "queuedRuns": {
+            "type": "integer"
+          },
+          "profiles": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/ProfileSummary"
+            }
+          },
+          "recoveryRequiredRuns": {
+            "type": "integer"
+          }
+        }
       },
-      "Preset": { "type": "object", "required": ["id", "label", "description", "allowedRoles"], "properties": { "id": { "type": "string" }, "label": { "type": "string" }, "description": { "type": "string" }, "allowedRoles": { "type": "array", "items": { "$ref": "#/components/schemas/Role" } } } },
+      "Preset": {
+        "type": "object",
+        "required": [
+          "id",
+          "label",
+          "description",
+          "allowedRoles"
+        ],
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "label": {
+            "type": "string"
+          },
+          "description": {
+            "type": "string"
+          },
+          "allowedRoles": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/Role"
+            }
+          }
+        }
+      },
       "Conversation": {
         "type": "object",
-        "required": ["id", "ownerProfileId", "agentId", "sessionKey", "title", "presetId", "audience", "updatedAt"],
-        "properties": { "id": { "type": "string" }, "ownerProfileId": { "type": "string" }, "agentId": { "type": "string" }, "sessionKey": { "type": "string" }, "title": { "type": "string" }, "presetId": { "type": ["string", "null"] }, "audience": { "enum": ["private", "household"] }, "updatedAt": { "type": "string", "format": "date-time" } }
+        "required": [
+          "id",
+          "ownerProfileId",
+          "agentId",
+          "sessionKey",
+          "title",
+          "tags",
+          "presetId",
+          "audience",
+          "updatedAt"
+        ],
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "ownerProfileId": {
+            "type": "string"
+          },
+          "agentId": {
+            "type": "string"
+          },
+          "sessionKey": {
+            "type": "string"
+          },
+          "title": {
+            "type": "string"
+          },
+          "tags": {
+            "type": "array",
+            "maxItems": 8,
+            "items": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 32
+            }
+          },
+          "presetId": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "audience": {
+            "enum": [
+              "private",
+              "household"
+            ]
+          },
+          "updatedAt": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "folderId": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "Current signed profile's private sidebar placement; other viewers have independent placement."
+          }
+        }
       },
-      "ChatMessage": { "type": "object", "required": ["id", "conversationId", "role", "text", "createdAt"], "properties": { "id": { "type": "string" }, "conversationId": { "type": "string" }, "role": { "enum": ["user", "assistant", "system"] }, "text": { "type": "string" }, "createdAt": { "type": "string", "format": "date-time" } } },
-      "EnrollmentClaim": { "type": "object", "required": ["code", "deviceName", "publicKeyDerBase64"], "properties": { "code": { "type": "string", "minLength": 8 }, "deviceName": { "type": "string", "minLength": 1, "maxLength": 80 }, "publicKeyDerBase64": { "type": "string" } } },
-      "EnrollmentResult": { "type": "object", "required": ["deviceId", "profile"], "properties": { "deviceId": { "type": "string" }, "profile": { "$ref": "#/components/schemas/Profile" } } },
-      "CreateConversation": { "type": "object", "required": ["title"], "properties": { "title": { "type": "string", "minLength": 1, "maxLength": 120 }, "presetId": { "type": ["string", "null"] } } },
-      "SubmitMessage": { "type": "object", "required": ["text", "submissionId"], "properties": { "text": { "type": "string", "minLength": 1, "maxLength": 20000 }, "submissionId": { "type": "string", "minLength": 8, "maxLength": 128 } } },
-      "SubmissionReceipt": { "type": "object", "required": ["submissionId", "conversationId", "profileId", "agentId", "status", "queuePosition", "runId"], "properties": { "submissionId": { "type": "string" }, "conversationId": { "type": "string" }, "profileId": { "type": "string" }, "agentId": { "type": "string" }, "status": { "enum": ["dispatching", "running", "queued", "complete", "failed", "cancelled"] }, "queuePosition": { "type": ["integer", "null"] }, "runId": { "type": ["string", "null"] } } }
+      "ConversationMetadata": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "title"
+        ],
+        "properties": {
+          "title": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 120
+          },
+          "tags": {
+            "type": "array",
+            "maxItems": 8,
+            "items": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 32
+            }
+          }
+        }
+      },
+      "ChatMessage": {
+        "type": "object",
+        "required": [
+          "id",
+          "conversationId",
+          "role",
+          "text",
+          "createdAt"
+        ],
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "conversationId": {
+            "type": "string"
+          },
+          "role": {
+            "enum": [
+              "user",
+              "assistant",
+              "system"
+            ]
+          },
+          "text": {
+            "type": "string"
+          },
+          "createdAt": {
+            "type": "string",
+            "format": "date-time"
+          }
+        }
+      },
+      "EnrollmentClaim": {
+        "type": "object",
+        "required": [
+          "code",
+          "deviceName",
+          "publicKeyDerBase64"
+        ],
+        "properties": {
+          "code": {
+            "type": "string",
+            "minLength": 8,
+            "maxLength": 128
+          },
+          "deviceName": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 80
+          },
+          "publicKeyDerBase64": {
+            "maxLength": 2048,
+            "minLength": 80,
+            "type": "string",
+            "description": "Base64 DER SubjectPublicKeyInfo for an ECDSA P-256 public key. The private key remains on the enrolling device."
+          }
+        },
+        "additionalProperties": false
+      },
+      "EnrollmentResult": {
+        "type": "object",
+        "required": [
+          "deviceId",
+          "profile"
+        ],
+        "properties": {
+          "deviceId": {
+            "type": "string"
+          },
+          "profile": {
+            "$ref": "#/components/schemas/Profile"
+          }
+        },
+        "additionalProperties": false
+      },
+      "CreateConversation": {
+        "type": "object",
+        "required": [
+          "title"
+        ],
+        "properties": {
+          "title": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 120
+          },
+          "presetId": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "audience": {
+            "$ref": "#/components/schemas/Audience",
+            "default": "private"
+          }
+        },
+        "additionalProperties": false
+      },
+      "SubmitMessage": {
+        "type": "object",
+        "required": [
+          "text",
+          "submissionId"
+        ],
+        "properties": {
+          "text": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 20000
+          },
+          "submissionId": {
+            "type": "string",
+            "minLength": 8,
+            "maxLength": 128,
+            "pattern": "^[A-Za-z0-9][A-Za-z0-9._:-]{7,127}$"
+          },
+          "goalStart": {
+            "type": "object",
+            "properties": {
+              "issuedAtMs": {
+                "type": "integer",
+                "minimum": 1
+              }
+            },
+            "required": [
+              "issuedAtMs"
+            ],
+            "additionalProperties": false
+          },
+          "mode": {
+            "$ref": "#/components/schemas/TaskMode"
+          },
+          "artifactIds": {
+            "items": {
+              "type": "string",
+              "pattern": "^artifact-[a-f0-9]{64}$"
+            },
+            "uniqueItems": true,
+            "maxItems": 12,
+            "type": "array"
+          },
+          "replyToQuestionId": {
+            "type": "string",
+            "pattern": "^artifact-[a-f0-9]{64}$"
+          },
+          "focus": {
+            "$ref": "#/components/schemas/ResourceFocus"
+          },
+          "approval": {
+            "$ref": "#/components/schemas/ApprovalDecision"
+          }
+        },
+        "additionalProperties": false,
+        "description": "A normal human prompt with immutable signed task metadata. Task/brain_dump/diagnostic text is limited to 16000 characters. A reply cannot also start a new goal; approval questionId must equal replyToQuestionId. Diagnosis requires an admin private conversation and stays read-only across continuations.",
+        "allOf": [
+          {
+            "if": {
+              "required": [
+                "mode"
+              ],
+              "properties": {
+                "mode": {
+                  "enum": [
+                    "task",
+                    "brain_dump",
+                    "diagnostic"
+                  ]
+                }
+              }
+            },
+            "then": {
+              "properties": {
+                "text": {
+                  "maxLength": 16000
+                }
+              }
+            }
+          },
+          {
+            "if": {
+              "required": [
+                "replyToQuestionId"
+              ]
+            },
+            "then": {
+              "not": {
+                "required": [
+                  "goalStart"
+                ]
+              }
+            }
+          }
+        ]
+      },
+      "SubmissionReceipt": {
+        "type": "object",
+        "required": [
+          "submissionId",
+          "conversationId",
+          "profileId",
+          "agentId",
+          "status",
+          "queuePosition",
+          "runId"
+        ],
+        "properties": {
+          "submissionId": {
+            "type": "string",
+            "pattern": "^[A-Za-z0-9][A-Za-z0-9._:-]{7,127}$"
+          },
+          "conversationId": {
+            "type": "string"
+          },
+          "profileId": {
+            "type": "string"
+          },
+          "agentId": {
+            "type": "string"
+          },
+          "status": {
+            "enum": [
+              "dispatching",
+              "running",
+              "queued",
+              "complete",
+              "failed",
+              "cancelled",
+              "waiting_for_user"
+            ]
+          },
+          "queuePosition": {
+            "type": [
+              "integer",
+              "null"
+            ]
+          },
+          "runId": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "failureCode": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "recoveryRequired": {
+            "type": "boolean"
+          },
+          "attemptCount": {
+            "type": "integer"
+          },
+          "goalId": {
+            "type": [
+              "string",
+              "null"
+            ]
+          }
+        },
+        "description": "Durable admission receipt. waiting_for_user releases settled execution capacity while retaining the native goal and durable question; it does not imply completion."
+      },
+      "GoalOperation": {
+        "type": "object",
+        "properties": {
+          "goalId": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 200
+          },
+          "operationId": {
+            "type": "string",
+            "minLength": 8,
+            "maxLength": 128
+          },
+          "issuedAtMs": {
+            "type": "integer",
+            "minimum": 1
+          },
+          "action": {
+            "enum": [
+              "edit",
+              "pause",
+              "resume",
+              "block",
+              "complete",
+              "clear"
+            ]
+          },
+          "objective": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 16000
+          },
+          "note": {
+            "type": "string",
+            "maxLength": 2000
+          }
+        },
+        "required": [
+          "goalId",
+          "operationId",
+          "issuedAtMs",
+          "action"
+        ],
+        "additionalProperties": false,
+        "allOf": [
+          {
+            "if": {
+              "properties": {
+                "action": {
+                  "const": "edit"
+                }
+              }
+            },
+            "then": {
+              "required": [
+                "objective"
+              ]
+            }
+          }
+        ]
+      },
+      "ConversationContext": {
+        "type": "object",
+        "readOnly": true,
+        "additionalProperties": false,
+        "required": [
+          "sessionKey",
+          "sessionId",
+          "goal",
+          "runId",
+          "continuationPending",
+          "parentSessionKey",
+          "contextTokens",
+          "contextBudgetStatus"
+        ],
+        "properties": {
+          "sessionKey": {
+            "type": "string"
+          },
+          "sessionId": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "goal": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/NativeGoal"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "runId": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "continuationPending": {
+            "type": "boolean"
+          },
+          "parentSessionKey": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "contextTokens": {
+            "type": [
+              "integer",
+              "null"
+            ]
+          },
+          "contextBudgetStatus": {
+            "type": [
+              "string",
+              "null"
+            ]
+          }
+        },
+        "description": "Owner-only native state projection. Native OpenClaw remains the execution authority."
+      },
+      "ArtifactInput": {
+        "type": "object",
+        "properties": {
+          "filename": {
+            "type": "string",
+            "maxLength": 180
+          },
+          "mimeType": {
+            "type": "string"
+          },
+          "contentBase64": {
+            "type": "string",
+            "contentEncoding": "base64"
+          },
+          "idempotencyKey": {
+            "type": "string",
+            "minLength": 8,
+            "maxLength": 128
+          },
+          "audience": {
+            "enum": [
+              "private",
+              "household"
+            ]
+          }
+        },
+        "required": [
+          "filename",
+          "mimeType",
+          "contentBase64",
+          "idempotencyKey"
+        ],
+        "additionalProperties": false,
+        "description": "Stages an immutable input in the current owner/conversation anchor. audience defaults to private. To admit an input into a shared task, its audience must match the shared conversation; task/owner/output-kind are never accepted from the client."
+      },
+      "Artifact": {
+        "type": "object",
+        "readOnly": true,
+        "additionalProperties": false,
+        "required": [
+          "id",
+          "schemaVersion",
+          "ownerProfileId",
+          "conversationId",
+          "taskId",
+          "audience",
+          "filename",
+          "mimeType",
+          "kind",
+          "byteLength",
+          "sha256",
+          "createdAt"
+        ],
+        "properties": {
+          "id": {
+            "type": "string",
+            "pattern": "^artifact-[a-f0-9]{64}$"
+          },
+          "schemaVersion": {
+            "const": 1
+          },
+          "ownerProfileId": {
+            "type": "string"
+          },
+          "conversationId": {
+            "type": "string"
+          },
+          "taskId": {
+            "type": "string"
+          },
+          "audience": {
+            "$ref": "#/components/schemas/Audience"
+          },
+          "filename": {
+            "type": "string"
+          },
+          "mimeType": {
+            "type": "string"
+          },
+          "kind": {
+            "enum": [
+              "input",
+              "output",
+              "evidence"
+            ]
+          },
+          "byteLength": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "sha256": {
+            "type": "string",
+            "pattern": "^[a-f0-9]{64}$"
+          },
+          "createdAt": {
+            "type": "string",
+            "format": "date-time"
+          }
+        },
+        "description": "Immutable scoped metadata. Inputs use a conversation anchor until admitted into a native task; clients cannot choose owner, task, kind or filesystem paths."
+      },
+      "CheckpointUpdate": {
+        "type": "object",
+        "properties": {
+          "nativeSessionId": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 200
+          },
+          "nativeGoalId": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "expectedRevision": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "phase": {
+            "type": "string",
+            "maxLength": 80
+          },
+          "questionArtifactId": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "checkpointArtifactId": {
+            "type": [
+              "string",
+              "null"
+            ]
+          }
+        },
+        "required": [
+          "nativeSessionId",
+          "nativeGoalId",
+          "expectedRevision",
+          "phase"
+        ],
+        "additionalProperties": false
+      },
+      "DeviceKind": {
+        "type": "string",
+        "enum": [
+          "personal",
+          "display"
+        ],
+        "description": "Server-assigned enrolled-device boundary. A display device can read only display routes; it is not a family chat device."
+      },
+      "Audience": {
+        "type": "string",
+        "enum": [
+          "private",
+          "household"
+        ]
+      },
+      "ClientReadScope": {
+        "type": "string",
+        "enum": [
+          "personal",
+          "household"
+        ]
+      },
+      "TaskMode": {
+        "type": "string",
+        "enum": [
+          "conversation",
+          "task",
+          "brain_dump",
+          "diagnostic"
+        ],
+        "default": "conversation"
+      },
+      "ResourceFocus": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "kind",
+          "id"
+        ],
+        "properties": {
+          "kind": {
+            "enum": [
+              "contact",
+              "receipt",
+              "wiki",
+              "list_item"
+            ]
+          },
+          "id": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 256,
+            "pattern": "^[^\\x00-\\x1f\\x7f]+$"
+          },
+          "revision": {
+            "type": "integer",
+            "minimum": 1
+          },
+          "scope": {
+            "$ref": "#/components/schemas/ClientReadScope"
+          }
+        },
+        "description": "A currently authorized read-view resource to discuss in a normal prompt. The server validates scope and revision; this is not a tool invocation or grant."
+      },
+      "ApprovalDecision": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "questionId",
+          "decision"
+        ],
+        "properties": {
+          "questionId": {
+            "type": "string",
+            "pattern": "^artifact-[a-f0-9]{64}$"
+          },
+          "decision": {
+            "enum": [
+              "approve",
+              "reject"
+            ]
+          }
+        },
+        "description": "A fresh signed human decision bound to the exact pending question. questionId must equal replyToQuestionId. It cannot grant unrelated effects or lift diagnosis-only mode."
+      },
+      "CancelOperation": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "operationId",
+          "issuedAtMs"
+        ],
+        "properties": {
+          "operationId": {
+            "type": "string",
+            "pattern": "^[A-Za-z0-9][A-Za-z0-9._:-]{7,127}$"
+          },
+          "issuedAtMs": {
+            "type": "integer",
+            "minimum": 1
+          },
+          "goalId": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 200
+          },
+          "runId": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 200
+          }
+        },
+        "anyOf": [
+          {
+            "required": [
+              "goalId"
+            ]
+          },
+          {
+            "required": [
+              "runId"
+            ]
+          }
+        ],
+        "description": "Idempotent exact-target stop. At least one current goal/run is required. Does not undo prior effects; stale or superseded control is rejected."
+      },
+      "CancelResult": {
+        "type": "object",
+        "readOnly": true,
+        "additionalProperties": false,
+        "required": [
+          "cancelled",
+          "replayed"
+        ],
+        "properties": {
+          "cancelled": {
+            "type": "boolean"
+          },
+          "replayed": {
+            "type": "boolean"
+          },
+          "goalId": {
+            "type": "string"
+          },
+          "runId": {
+            "type": "string"
+          }
+        }
+      },
+      "GoalMutationResult": {
+        "type": "object",
+        "readOnly": true,
+        "additionalProperties": false,
+        "required": [
+          "goalId",
+          "runId",
+          "status",
+          "replayed"
+        ],
+        "properties": {
+          "goalId": {
+            "type": "string"
+          },
+          "runId": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "status": {
+            "type": "string"
+          },
+          "replayed": {
+            "type": "boolean"
+          },
+          "receipt": {
+            "$ref": "#/components/schemas/SubmissionReceipt"
+          }
+        }
+      },
+      "NativeGoal": {
+        "type": "object",
+        "readOnly": true,
+        "additionalProperties": false,
+        "required": [
+          "id",
+          "objective",
+          "status",
+          "updatedAt"
+        ],
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "objective": {
+            "type": "string"
+          },
+          "status": {
+            "enum": [
+              "active",
+              "paused",
+              "blocked",
+              "usage_limited",
+              "budget_limited",
+              "complete"
+            ]
+          },
+          "updatedAt": {
+            "type": "integer"
+          }
+        }
+      },
+      "Checkpoint": {
+        "type": "object",
+        "readOnly": true,
+        "additionalProperties": false,
+        "required": [
+          "conversationId",
+          "nativeSessionId",
+          "nativeGoalId",
+          "revision",
+          "phase",
+          "questionArtifactId",
+          "checkpointArtifactId",
+          "updatedAt"
+        ],
+        "properties": {
+          "conversationId": {
+            "type": "string"
+          },
+          "nativeSessionId": {
+            "type": "string"
+          },
+          "nativeGoalId": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "revision": {
+            "type": "integer",
+            "minimum": 1
+          },
+          "phase": {
+            "type": "string",
+            "maxLength": 80
+          },
+          "questionArtifactId": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "checkpointArtifactId": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "updatedAt": {
+            "type": "string",
+            "format": "date-time"
+          }
+        }
+      },
+      "ArtifactCard": {
+        "type": "object",
+        "readOnly": true,
+        "additionalProperties": false,
+        "required": [
+          "id",
+          "filename",
+          "mimeType",
+          "kind",
+          "audience",
+          "byteLength",
+          "createdAt"
+        ],
+        "properties": {
+          "id": {
+            "type": "string",
+            "pattern": "^artifact-[a-f0-9]{64}$"
+          },
+          "filename": {
+            "type": "string"
+          },
+          "mimeType": {
+            "type": "string"
+          },
+          "kind": {
+            "enum": [
+              "input",
+              "output"
+            ]
+          },
+          "audience": {
+            "$ref": "#/components/schemas/Audience"
+          },
+          "byteLength": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "createdAt": {
+            "type": "string",
+            "format": "date-time"
+          }
+        }
+      },
+      "QuestionApproval": {
+        "type": "object",
+        "readOnly": true,
+        "additionalProperties": false,
+        "required": [
+          "toolName",
+          "operationId",
+          "resourceId"
+        ],
+        "properties": {
+          "toolName": {
+            "type": "string"
+          },
+          "operationId": {
+            "type": "string"
+          },
+          "resourceId": {
+            "type": "string"
+          },
+          "waivedReasons": {
+            "type": "array",
+            "maxItems": 40,
+            "items": {
+              "type": "string",
+              "maxLength": 200
+            }
+          }
+        }
+      },
+      "TaskQuestionCard": {
+        "type": "object",
+        "readOnly": true,
+        "additionalProperties": false,
+        "required": [
+          "id",
+          "text",
+          "kind"
+        ],
+        "properties": {
+          "id": {
+            "type": "string",
+            "pattern": "^artifact-[a-f0-9]{64}$"
+          },
+          "text": {
+            "type": "string",
+            "maxLength": 4000
+          },
+          "kind": {
+            "enum": [
+              "clarification",
+              "approval",
+              "receipt_review"
+            ]
+          },
+          "approval": {
+            "$ref": "#/components/schemas/QuestionApproval"
+          }
+        },
+        "description": "A durable same-task question. Any freeform answer is submitted as a normal signed prompt; choices do not restrict the response."
+      },
+      "ProgressStep": {
+        "type": "object",
+        "readOnly": true,
+        "additionalProperties": false,
+        "required": [
+          "step",
+          "status"
+        ],
+        "properties": {
+          "step": {
+            "type": "string"
+          },
+          "status": {
+            "enum": [
+              "pending",
+              "in_progress",
+              "completed"
+            ]
+          }
+        }
+      },
+      "TaskWorkspace": {
+        "type": "object",
+        "readOnly": true,
+        "additionalProperties": false,
+        "required": [
+          "task",
+          "artifacts",
+          "artifactsTruncated",
+          "availableViews"
+        ],
+        "properties": {
+          "task": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": [
+              "mode",
+              "status",
+              "phase",
+              "goalId",
+              "runId",
+              "objective",
+              "progress",
+              "question",
+              "checkpointRevision"
+            ],
+            "properties": {
+              "mode": {
+                "$ref": "#/components/schemas/TaskMode"
+              },
+              "status": {
+                "enum": [
+                  "shared",
+                  "waiting_for_user",
+                  "active",
+                  "paused",
+                  "blocked",
+                  "usage_limited",
+                  "budget_limited",
+                  "complete",
+                  "running",
+                  "idle"
+                ]
+              },
+              "activity": {
+                "description": "Current admitted delivery activity for this owned conversation.",
+                "enum": [
+                  "idle",
+                  "queued",
+                  "dispatching",
+                  "running"
+                ]
+              },
+              "phase": {
+                "type": "string",
+                "maxLength": 80
+              },
+              "goalId": {
+                "type": [
+                  "string",
+                  "null"
+                ]
+              },
+              "runId": {
+                "type": [
+                  "string",
+                  "null"
+                ]
+              },
+              "objective": {
+                "type": "string",
+                "maxLength": 10000
+              },
+              "progress": {
+                "type": "object",
+                "additionalProperties": false,
+                "required": [
+                  "summary",
+                  "steps"
+                ],
+                "properties": {
+                  "summary": {
+                    "type": "string",
+                    "maxLength": 8192
+                  },
+                  "steps": {
+                    "type": "array",
+                    "items": {
+                      "$ref": "#/components/schemas/ProgressStep"
+                    }
+                  }
+                }
+              },
+              "question": {
+                "anyOf": [
+                  {
+                    "$ref": "#/components/schemas/TaskQuestionCard"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              },
+              "checkpointRevision": {
+                "type": [
+                  "integer",
+                  "null"
+                ]
+              }
+            }
+          },
+          "artifacts": {
+            "type": "array",
+            "maxItems": 100,
+            "items": {
+              "$ref": "#/components/schemas/ArtifactCard"
+            }
+          },
+          "artifactsTruncated": {
+            "type": "boolean"
+          },
+          "availableViews": {
+            "type": "array",
+            "uniqueItems": true,
+            "items": {
+              "enum": [
+                "contacts",
+                "lists",
+                "wiki",
+                "receipts"
+              ]
+            }
+          }
+        },
+        "description": "Read-only task card from native state and bound checkpoint artifacts. Shared readers receive a bounded projection, not another person's raw transcript."
+      },
+      "ContactFields": {
+        "type": "object",
+        "readOnly": true,
+        "additionalProperties": false,
+        "properties": {
+          "full_name": {
+            "$ref": "#/components/schemas/ContactFieldValues"
+          },
+          "organization": {
+            "$ref": "#/components/schemas/ContactFieldValues"
+          },
+          "job_title": {
+            "$ref": "#/components/schemas/ContactFieldValues"
+          },
+          "email": {
+            "$ref": "#/components/schemas/ContactFieldValues"
+          },
+          "phone": {
+            "$ref": "#/components/schemas/ContactFieldValues"
+          },
+          "website": {
+            "$ref": "#/components/schemas/ContactFieldValues"
+          },
+          "address": {
+            "$ref": "#/components/schemas/ContactFieldValues"
+          },
+          "notes": {
+            "$ref": "#/components/schemas/ContactFieldValues"
+          }
+        }
+      },
+      "ContactFieldValues": {
+        "type": "array",
+        "maxItems": 30,
+        "items": {
+          "type": "string",
+          "maxLength": 2000
+        }
+      },
+      "ContactSource": {
+        "type": "object",
+        "readOnly": true,
+        "additionalProperties": false,
+        "required": [
+          "artifactId",
+          "sha256",
+          "filename",
+          "mimeType",
+          "byteLength"
+        ],
+        "properties": {
+          "artifactId": {
+            "type": "string"
+          },
+          "sha256": {
+            "type": "string"
+          },
+          "filename": {
+            "type": "string",
+            "maxLength": 180
+          },
+          "mimeType": {
+            "type": "string",
+            "maxLength": 80
+          },
+          "byteLength": {
+            "type": "integer",
+            "minimum": 0
+          }
+        }
+      },
+      "ContactCard": {
+        "type": "object",
+        "readOnly": true,
+        "additionalProperties": false,
+        "required": [
+          "id",
+          "audience",
+          "currentRevision",
+          "createdAt",
+          "updatedAt",
+          "fields",
+          "uncertainties",
+          "sources"
+        ],
+        "properties": {
+          "id": {
+            "type": "string",
+            "pattern": "^contact-[a-f0-9]{32}$"
+          },
+          "audience": {
+            "$ref": "#/components/schemas/Audience"
+          },
+          "currentRevision": {
+            "type": "integer",
+            "minimum": 1
+          },
+          "createdAt": {
+            "type": "string"
+          },
+          "updatedAt": {
+            "type": "string"
+          },
+          "fields": {
+            "$ref": "#/components/schemas/ContactFields"
+          },
+          "uncertainties": {
+            "type": "array",
+            "maxItems": 40,
+            "items": {
+              "type": "string",
+              "maxLength": 2000
+            }
+          },
+          "sources": {
+            "type": "array",
+            "maxItems": 8,
+            "items": {
+              "$ref": "#/components/schemas/ContactSource"
+            }
+          }
+        }
+      },
+      "ContactsPage": {
+        "type": "object",
+        "readOnly": true,
+        "additionalProperties": false,
+        "required": [
+          "contacts",
+          "hasMore",
+          "nextOffset"
+        ],
+        "properties": {
+          "contacts": {
+            "type": "array",
+            "maxItems": 50,
+            "items": {
+              "$ref": "#/components/schemas/ContactCard"
+            }
+          },
+          "hasMore": {
+            "type": "boolean"
+          },
+          "nextOffset": {
+            "type": [
+              "integer",
+              "null"
+            ]
+          }
+        }
+      },
+      "ContactRevision": {
+        "type": "object",
+        "readOnly": true,
+        "additionalProperties": false,
+        "required": [
+          "revision",
+          "createdAt",
+          "reason",
+          "fields",
+          "uncertainties"
+        ],
+        "properties": {
+          "revision": {
+            "type": "integer",
+            "minimum": 1
+          },
+          "createdAt": {
+            "type": "string"
+          },
+          "reason": {
+            "type": "string",
+            "maxLength": 80
+          },
+          "fields": {
+            "$ref": "#/components/schemas/ContactFields"
+          },
+          "uncertainties": {
+            "type": "array",
+            "maxItems": 40,
+            "items": {
+              "type": "string",
+              "maxLength": 2000
+            }
+          }
+        }
+      },
+      "ContactDetail": {
+        "type": "object",
+        "readOnly": true,
+        "additionalProperties": false,
+        "required": [
+          "contact",
+          "revisions"
+        ],
+        "properties": {
+          "contact": {
+            "$ref": "#/components/schemas/ContactCard"
+          },
+          "revisions": {
+            "type": "array",
+            "maxItems": 30,
+            "items": {
+              "$ref": "#/components/schemas/ContactRevision"
+            }
+          }
+        }
+      },
+      "ListItemCard": {
+        "type": "object",
+        "readOnly": true,
+        "additionalProperties": false,
+        "required": [
+          "id",
+          "text",
+          "kind",
+          "done"
+        ],
+        "properties": {
+          "id": {
+            "type": "string",
+            "maxLength": 80
+          },
+          "text": {
+            "type": "string",
+            "maxLength": 2000
+          },
+          "kind": {
+            "type": "string",
+            "maxLength": 40
+          },
+          "done": {
+            "type": "boolean"
+          },
+          "due": {
+            "type": "string",
+            "maxLength": 40
+          }
+        }
+      },
+      "ListsView": {
+        "type": "object",
+        "readOnly": true,
+        "additionalProperties": false,
+        "required": [
+          "scope",
+          "items",
+          "updatedAt",
+          "truncated"
+        ],
+        "properties": {
+          "scope": {
+            "$ref": "#/components/schemas/ClientReadScope"
+          },
+          "items": {
+            "type": "array",
+            "maxItems": 1000,
+            "items": {
+              "$ref": "#/components/schemas/ListItemCard"
+            }
+          },
+          "updatedAt": {
+            "type": "string"
+          },
+          "truncated": {
+            "type": "boolean"
+          }
+        }
+      },
+      "WikiSummary": {
+        "type": "object",
+        "readOnly": true,
+        "additionalProperties": false,
+        "required": [
+          "id",
+          "title",
+          "excerpt"
+        ],
+        "properties": {
+          "id": {
+            "type": "string",
+            "maxLength": 240
+          },
+          "title": {
+            "type": "string",
+            "maxLength": 180
+          },
+          "excerpt": {
+            "type": "string",
+            "maxLength": 1500
+          }
+        }
+      },
+      "WikiSearchView": {
+        "type": "object",
+        "readOnly": true,
+        "additionalProperties": false,
+        "required": [
+          "scope",
+          "pages"
+        ],
+        "properties": {
+          "scope": {
+            "$ref": "#/components/schemas/ClientReadScope"
+          },
+          "pages": {
+            "type": "array",
+            "maxItems": 50,
+            "items": {
+              "$ref": "#/components/schemas/WikiSummary"
+            }
+          }
+        }
+      },
+      "WikiPageView": {
+        "type": "object",
+        "readOnly": true,
+        "additionalProperties": false,
+        "required": [
+          "scope",
+          "page"
+        ],
+        "properties": {
+          "scope": {
+            "$ref": "#/components/schemas/ClientReadScope"
+          },
+          "page": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": [
+              "id",
+              "title",
+              "body",
+              "sources",
+              "truncated"
+            ],
+            "properties": {
+              "id": {
+                "type": "string",
+                "maxLength": 240
+              },
+              "title": {
+                "type": "string",
+                "maxLength": 180
+              },
+              "body": {
+                "type": "string",
+                "maxLength": 100000
+              },
+              "sources": {
+                "type": "array",
+                "maxItems": 40,
+                "items": {
+                  "type": "object",
+                  "additionalProperties": false,
+                  "required": [
+                    "title"
+                  ],
+                  "properties": {
+                    "title": {
+                      "type": "string",
+                      "maxLength": 180
+                    }
+                  }
+                }
+              },
+              "truncated": {
+                "type": "boolean"
+              }
+            }
+          }
+        }
+      },
+      "ReceiptReviewCard": {
+        "type": "object",
+        "readOnly": true,
+        "additionalProperties": false,
+        "required": [
+          "receiptId",
+          "reviewId",
+          "revision",
+          "title",
+          "reasons",
+          "question",
+          "updatedAt"
+        ],
+        "properties": {
+          "receiptId": {
+            "type": "string",
+            "maxLength": 128
+          },
+          "reviewId": {
+            "type": "string",
+            "maxLength": 128
+          },
+          "revision": {
+            "type": "integer",
+            "minimum": 1
+          },
+          "title": {
+            "type": "string",
+            "maxLength": 180
+          },
+          "reasons": {
+            "type": "array",
+            "maxItems": 40,
+            "items": {
+              "type": "string",
+              "maxLength": 1000
+            }
+          },
+          "question": {
+            "type": "string",
+            "maxLength": 2000
+          },
+          "updatedAt": {
+            "type": "string"
+          }
+        }
+      },
+      "ReceiptReviewView": {
+        "type": "object",
+        "readOnly": true,
+        "additionalProperties": false,
+        "required": [
+          "items",
+          "hasMore"
+        ],
+        "properties": {
+          "items": {
+            "type": "array",
+            "maxItems": 100,
+            "items": {
+              "$ref": "#/components/schemas/ReceiptReviewCard"
+            }
+          },
+          "hasMore": {
+            "type": "boolean"
+          }
+        }
+      },
+      "DisplayEnrollmentResult": {
+        "type": "object",
+        "readOnly": true,
+        "additionalProperties": false,
+        "required": [
+          "deviceId"
+        ],
+        "properties": {
+          "deviceId": {
+            "type": "string"
+          }
+        }
+      },
+      "DisplayListItem": {
+        "type": "object",
+        "readOnly": true,
+        "additionalProperties": false,
+        "required": [
+          "id",
+          "text"
+        ],
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "text": {
+            "type": "string"
+          },
+          "due": {
+            "type": [
+              "string",
+              "null"
+            ]
+          }
+        }
+      },
+      "DisplayEvent": {
+        "type": "object",
+        "readOnly": true,
+        "additionalProperties": false,
+        "required": [
+          "id",
+          "title",
+          "start",
+          "end",
+          "allDay"
+        ],
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "title": {
+            "type": "string"
+          },
+          "start": {
+            "type": "string"
+          },
+          "end": {
+            "type": "string"
+          },
+          "allDay": {
+            "type": "boolean"
+          },
+          "timeZone": {
+            "type": "string"
+          },
+          "location": {
+            "type": "string"
+          }
+        }
+      },
+      "DisplayPublication": {
+        "type": "object",
+        "readOnly": true,
+        "additionalProperties": false,
+        "required": [
+          "id",
+          "title",
+          "mimeType",
+          "byteLength",
+          "sha256",
+          "publishedAt",
+          "expiresAt",
+          "contentPath"
+        ],
+        "properties": {
+          "id": {
+            "type": "string",
+            "pattern": "^display-[a-f0-9]{64}$"
+          },
+          "title": {
+            "type": "string",
+            "maxLength": 180
+          },
+          "mimeType": {
+            "enum": [
+              "image/png",
+              "image/jpeg",
+              "image/webp",
+              "text/plain"
+            ]
+          },
+          "byteLength": {
+            "type": "integer",
+            "minimum": 1
+          },
+          "sha256": {
+            "type": "string",
+            "pattern": "^[a-f0-9]{64}$"
+          },
+          "publishedAt": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "expiresAt": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "contentPath": {
+            "type": "string",
+            "pattern": "^/v1/display/publications/display-[a-f0-9]{64}/content$"
+          }
+        }
+      },
+      "DisplaySnapshot": {
+        "type": "object",
+        "readOnly": true,
+        "additionalProperties": false,
+        "required": [
+          "schemaVersion",
+          "generatedAt",
+          "householdLists",
+          "upcomingEvents",
+          "publicationStatus",
+          "publications"
+        ],
+        "properties": {
+          "schemaVersion": {
+            "const": 1
+          },
+          "generatedAt": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "householdLists": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": [
+              "status",
+              "shopping",
+              "tasks",
+              "waiting"
+            ],
+            "properties": {
+              "status": {
+                "enum": [
+                  "ready",
+                  "unavailable"
+                ]
+              },
+              "shopping": {
+                "type": "array",
+                "items": {
+                  "$ref": "#/components/schemas/DisplayListItem"
+                }
+              },
+              "tasks": {
+                "type": "array",
+                "items": {
+                  "$ref": "#/components/schemas/DisplayListItem"
+                }
+              },
+              "waiting": {
+                "type": "array",
+                "items": {
+                  "$ref": "#/components/schemas/DisplayListItem"
+                }
+              }
+            }
+          },
+          "upcomingEvents": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": [
+              "status",
+              "from",
+              "to",
+              "events"
+            ],
+            "properties": {
+              "status": {
+                "enum": [
+                  "ready",
+                  "unavailable"
+                ]
+              },
+              "from": {
+                "type": "string",
+                "format": "date-time"
+              },
+              "to": {
+                "type": "string",
+                "format": "date-time"
+              },
+              "events": {
+                "type": "array",
+                "maxItems": 50,
+                "items": {
+                  "$ref": "#/components/schemas/DisplayEvent"
+                }
+              }
+            }
+          },
+          "publicationStatus": {
+            "enum": [
+              "ready",
+              "unavailable"
+            ]
+          },
+          "publications": {
+            "type": "array",
+            "maxItems": 10,
+            "items": {
+              "$ref": "#/components/schemas/DisplayPublication"
+            }
+          }
+        },
+        "description": "Display-device-only household projection. No conversations, mailbox, private wiki, receipts, diagnostic reports, credentials or arbitrary artifacts are exposed."
+      },
+      "ArtifactPage": {
+        "properties": {
+          "truncated": {
+            "type": "boolean"
+          },
+          "items": {
+            "maxItems": 100,
+            "items": {
+              "$ref": "#/components/schemas/Artifact"
+            },
+            "type": "array"
+          }
+        },
+        "readOnly": true,
+        "required": [
+          "items",
+          "truncated"
+        ],
+        "type": "object",
+        "additionalProperties": false
+      },
+      "FitbitSnapshot": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "available",
+          "phase",
+          "sessionId",
+          "startedAt",
+          "endsAt",
+          "lastSyncTime",
+          "syncVerified",
+          "dataConnection",
+          "proximityHint"
+        ],
+        "properties": {
+          "available": {
+            "type": "boolean",
+            "enum": [
+              true
+            ]
+          },
+          "phase": {
+            "type": "string",
+            "enum": [
+              "idle",
+              "starting",
+              "running",
+              "stopping",
+              "needs_help",
+              "unavailable"
+            ]
+          },
+          "sessionId": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "startedAt": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "date-time"
+          },
+          "endsAt": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "date-time"
+          },
+          "lastSyncTime": {
+            "type": "null"
+          },
+          "syncVerified": {
+            "type": "boolean",
+            "enum": [
+              false
+            ]
+          },
+          "dataConnection": {
+            "type": "string",
+            "enum": [
+              "not_connected"
+            ]
+          },
+          "proximityHint": {
+            "type": "string",
+            "maxLength": 180
+          }
+        }
+      },
+      "FitbitSyncRequest": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "operationId"
+        ],
+        "properties": {
+          "operationId": {
+            "type": "string",
+            "pattern": "^[a-zA-Z0-9][a-zA-Z0-9._-]{7,95}$"
+          }
+        }
+      },
+      "ConnectionSummary": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "id",
+          "label",
+          "kind",
+          "status",
+          "scopes",
+          "createdAt",
+          "updatedAt"
+        ],
+        "properties": {
+          "id": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 128
+          },
+          "label": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 120
+          },
+          "kind": {
+            "type": "string",
+            "enum": [
+              "password",
+              "google"
+            ]
+          },
+          "account": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 512
+          },
+          "accountId": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 256
+          },
+          "origin": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 1024
+          },
+          "preset": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 80
+          },
+          "scopes": {
+            "type": "array",
+            "items": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 1024
+            }
+          },
+          "status": {
+            "type": "string",
+            "enum": [
+              "connected",
+              "disconnected",
+              "needs_reauthorization",
+              "unknown"
+            ]
+          },
+          "createdAt": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "updatedAt": {
+            "type": "string",
+            "format": "date-time"
+          }
+        }
+      },
+      "ConversationFolder": {
+        "type": "object",
+        "required": [
+          "id",
+          "name",
+          "createdAt",
+          "updatedAt"
+        ],
+        "properties": {
+          "id": {
+            "type": "string",
+            "pattern": "^folder-[0-9a-fA-F-]{36}$"
+          },
+          "name": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 80
+          },
+          "createdAt": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "updatedAt": {
+            "type": "string",
+            "format": "date-time"
+          }
+        }
+      },
+      "CreateConversationFolder": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "folderId",
+          "name"
+        ],
+        "properties": {
+          "folderId": {
+            "type": "string",
+            "pattern": "^folder-[0-9a-fA-F-]{36}$",
+            "description": "Client-generated stable UUID, reused for an uncertain create retry."
+          },
+          "name": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 80
+          }
+        }
+      },
+      "RenameConversationFolder": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "name"
+        ],
+        "properties": {
+          "name": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 80
+          }
+        }
+      },
+      "ConversationFolderPlacement": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "folderId"
+        ],
+        "properties": {
+          "folderId": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "Owned folder ID; null returns this viewer's conversation to Unfiled."
+          }
+        }
+      }
     }
   }
 }
