@@ -4,14 +4,14 @@ import type { TaskDomain, TaskFinalizeDecision, TaskFlowContext, TaskSnapshot } 
 
 const hash = (value: unknown) => createHash("sha256").update(JSON.stringify(value)).digest("hex");
 const diagnosticTools = new Set([
-  "get_goal", "create_goal", "update_goal", "session_status", "progress_card", "household_diagnostics_evidence", "household_effects_inspect",
+  "get_goal", "create_goal", "update_goal", "session_status", "progress_card", "household_diagnostics_evidence", "household_diagnostics_system_status", "household_effects_inspect",
   "household_task_context", "household_task_select_domains", "household_task_checkpoint", "household_task_ask_question",
   "household_task_bind_reply", "household_task_verify_outcome", "household_task_finish", "household_task_complete", "household_task_stop",
   "household_analysis_publish_report",
 ]);
 export function diagnosticToolAllowed(toolName: string, args: unknown): boolean {
   if (!diagnosticTools.has(toolName)) return false;
-  if (toolName === "session_status") return !!args && typeof args === "object" && !Array.isArray(args) && Object.keys(args).length === 0;
+  if (toolName === "session_status" || toolName === "household_diagnostics_system_status") return !!args && typeof args === "object" && !Array.isArray(args) && Object.keys(args).length === 0;
   return true; // Current source, permissions and completion evidence are independently rechecked.
 }
 export function diagnosticToolsAllow(): string[] { return [...diagnosticTools]; }

@@ -1,14 +1,32 @@
 # Current household assistant status
 
-As of November 25, 2026. **Pre-production. Household control 0.10.2 and protected Connections are deployed and ready. One child profile’s Fitbit session control is enabled. Additional browser enrollment and pairing remain pending.**
+As of November 26, 2026. **Pre-production. Household control 0.11.0 and protected Connections remain deployed; household web access is currently unavailable while router reservation/restoration is deferred. One child profile’s Fitbit session control is enabled. Additional browser enrollment and pairing remain pending.**
 Complete household functional acceptance remains open.
+
+## November 26 read-only system status deployed (0.11.0)
+
+Household control **0.11.0** deploys the optional read-only system snapshot through the existing diagnostics domain. The protected manifest and native registration declare **91 tool names** before contextual grant filtering. Routine private operator requests retain current identity, capability and grant checks without an artificial goal. Hardware/resource, fixed-service and loaded-model observations have explicit partial/unavailable states; collection success does not mean every service is healthy.
+
+Backend **635/635** checks passed with the installed protected SDK and no skips, alongside **25/25** Python and **11/11** installer checks and source validation. Exact source/allow-entry promotion, metadata preservation, native registration, deployed collector, fresh PID/config attestation and isolation checks passed. No inference or model loading was used. Natural-language chat acceptance remains untested while household web access is unavailable pending deferred network restoration. Main's 128K/high defaults, V5 core patch, grants, databases and disabled scheduling are unchanged. See [implementation and acceptance](system-status-diagnostics.md).
+
+## November 26 Main 128K context and maximum compatible reasoning
+
+Main now uses **131,072 tokens for both the native working budget and Ollama allocation**. The selected Qwen descriptor's three context fields are aligned in the protected and retained preparation inputs. Main-only `thinkingDefault=high` reaches native Ollama as `think:"high"`, which the installed Qwen renderer maps to **XHIGH**. The model, GPT/default profiles, production output options, compaction policy, grants and disabled scheduling are unchanged.
+
+Two bounded 128K/high capacity requests stopped normally with thinking and responses, all 66 model layers offloaded and full API GPU residency. The workload used about 10.8K prompt tokens; it does not certify a near-full 128K prompt or semantic quality. Live Gateway registry, deployed serialization, PID/config attestation and isolation checks passed. The first immediate post-start observer failed and was retained with all owners stopped; a forward start waited for the listener and unchanged owner observer, then passed without rewriting configuration. The precise original failure cause remains unconfirmed. Household web access is still unavailable pending deferred network restoration. See [capacity evidence and limits](dual-gpu-model-readiness.md).
+
+## November 26 dual-GPU readiness and service availability
+
+Two RTX 3090 24 GiB cards now serve the unchanged Qwen 27B Q4 model through one shared Ollama instance. Native CDI and spread/serial/single-resident-model settings are applied; the pinned image, model volume, runtime and loopback endpoint were preserved. One runner used both devices, all 66 model layers were offloaded, and the API reported full GPU residency at 65,536 in the earlier capacity check. Its two serial diagnostic requests passed capacity and driver-health checks. This does not certify semantic quality, long thermal soak or combined OCR/embedding capacity; that earlier check left production thinking, generation and profile settings unchanged. See [measured readiness and limits](dual-gpu-model-readiness.md).
+
+The native Gateway is operational and was idle after the checks. Household web services remain unready because the current LAN address differs from their existing binds/certificate/origin. Router reservation/restoration is explicitly deferred; no address, bind, TLS or origin was changed for GPU testing. Protected source V5 and household permissions remain unchanged.
 
 ## Release and configuration
 
-The ordinary release is household control **0.10.2**, API **0.8.0**, application schema **8**, Uplift schema **1**. The protected plugin manifest and stock CLI registration expose **90 tool names** before contextual grant filtering. Protected manifests and receipts bind exact source, configuration and executed checks. Isolated runs used synthetic data and retained earlier failures. SSH access resumed after the service restart. The cause of the intermittent remote greeting failure remains unconfirmed.
+The ordinary release is household control **0.11.0**, API **0.8.0**, application schema **8**, Uplift schema **1**. The protected plugin manifest and native registration expose **91 tool names** before contextual grant filtering. Protected manifests and receipts bind exact source, configuration and executed checks. Isolated runs used synthetic data and retained earlier failures. SSH access resumed after the service restart. The cause of the intermittent remote greeting failure remains unconfirmed.
 
 The ordinary runtime uses OpenClaw **2026.9.8 with the owner-approved pinned V5 native compatibility patch (eight files)** and the separately installed
-Discord adapter **2026.9.7**, Node **24.21.0** and local Ollama **0.32.15**. Main uses **Qwen3.8 27B Q4_K_M at 64K for both native working budget and provider allocation**. GPT-OSS defaults and other
+Discord adapter **2026.9.7**, Node **24.21.0** and local Ollama **0.32.15**. Main uses **Qwen3.8 27B Q4_K_M at 128K for both native working budget and provider allocation, with Main high thinking**. GPT-OSS defaults and other
 profiles remain unchanged; no fallback or hosted inference was added. The earlier
 single-model measurement was fully GPU-resident at 18,912 MiB total GPU use; it
 does not establish combined OCR/embedding/four-person capacity.
@@ -23,7 +41,7 @@ engine or second memory/credential store was activated.
 
 Household control 0.10.2 and the approved eight-file OpenClaw V5 patch are
 deployed. The selected Qwen `contextTokens`, `contextWindow` and provider
-`num_ctx` now all equal 65,536. The earlier two-leaf allocation change missed a
+`num_ctx` were aligned at 65,536 in that November 25 repair. The current default is 131,072 as recorded above. The earlier two-leaf allocation change missed a
 separate native32 cap; its provider64 measurements did not prove a native64
 working budget. Other models/GPT32, output options, grants and disabled scheduling
 remain unchanged. Ordinary prior resolved metadata is recomputed on the next turn.
@@ -75,7 +93,7 @@ separate validation and configuration deployment are recorded below and in
 
 This preserves the initial provider-allocation phase. Its separate native32 cap was discovered and corrected by the later context repair above.
 
-Main's selected Qwen descriptor and native Ollama `num_ctx` are both **65,536**
+At that phase, Main's selected Qwen descriptor and native Ollama `num_ctx` were both **65,536**
 in the active protected configuration and retained preparation input. The
 model, 2,048 per-call output descriptor, GPT profiles, credential boundaries,
 permissions, no-fallback policy and disabled scheduling remain unchanged.

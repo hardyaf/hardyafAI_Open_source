@@ -2,8 +2,9 @@
 
 This project is the implementation home for the OpenClaw household assistant.
 It began as the stock-OpenClaw replacement baseline for HardyAI/Jarvis and now
-includes the household app and supported first-party skills. Upstream OpenClaw
-remains unmodified; the former native Jarvis engine remains inactive.
+includes the household app and supported first-party skills. Native execution remains
+OpenClaw, with the owner-approved, version-pinned context-budget compatibility
+patch recorded in current status; the former native Jarvis engine remains inactive.
 
 The current planning set is:
 
@@ -32,7 +33,7 @@ Deployment baseline (current verification and acceptance are maintained in [curr
 - Google integration: `gog` `0.43.0`, skill `1.0.0`
 - Local inference: see [current status](docs/current-status.md) for the active Ollama version, selected model and evaluation results
 - Local embeddings: `qwen3-embedding:8b`, with no cloud fallback
-- GPU: RTX 3090, 24 GiB, NVIDIA driver `595.91.07`
+- GPU: see [current status](docs/current-status.md) for the installed devices and verified driver/runtime
 - Gateway: authenticated private deployment
 - Release/checks/availability: see the single [current status](docs/current-status.md) summary and protected final deployment receipt.
 - Remaining work and acceptance: follow the existing [implementation plan](docs/household-assistant-implementation-plan.md) and current status; implemented reliability changes stay within the consolidated campaign.
@@ -51,6 +52,14 @@ Natural-language household notes and lists use the first-party
 PDF documents use the first-party `local-documents` workspace skill with a
 fast local text path and a pinned, CPU-only Docling/RapidOCR fallback. See
 [`docs/local-documents.md`](docs/local-documents.md).
+
+## Public information website
+
+The [homepage source](docs/index.html), [privacy policy](docs/privacy.html) and
+[terms](docs/terms.html) can be served directly with GitHub Pages from this
+repository's docs folder. They contain public information only. Follow the
+[Pages setup guide](docs/github-pages-setup.md) for branch selection, free-plan
+visibility requirements and the separate Google OAuth publishing step.
 
 ## Household application
 

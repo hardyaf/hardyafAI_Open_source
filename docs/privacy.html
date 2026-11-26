@@ -1,0 +1,54 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="description" content="How Hardy Home (house-bot) accesses, uses, stores and shares Google account information, and how to disconnect or request deletion.">
+<meta name="referrer" content="no-referrer">
+<meta http-equiv="Content-Security-Policy" content="default-src 'none'; style-src 'self'; img-src 'self'; base-uri 'none'; form-action 'none'">
+<title>Privacy policy | Hardy Home (house-bot)</title>
+<link rel="stylesheet" href="site.css">
+</head>
+<body>
+<a class="skip" href="#main">Skip to content</a>
+<header class="site-header"><div class="wrap header-inner">
+<a class="brand" href="index.html"><span class="mark" aria-hidden="true">H</span>Hardy Home</a>
+<nav class="nav" aria-label="Main navigation"><a href="index.html">Overview</a><a href="privacy.html" aria-current="page">Privacy</a><a href="terms.html">Terms</a></nav>
+</div></header>
+
+<main id="main" class="wrap legal"><p class="eyebrow">Hardy Home · house-bot</p><h1>Privacy policy</h1>
+<p class="effective">Effective November 26, 2026</p>
+<p class="intro">This policy covers Hardy Home (house-bot), its private household application, and this public information website. The project is operated for a private household.</p>
+<p>For privacy questions, access requests or deletion requests, contact the household operator at <a href="mailto:hardy.aibot@gmail.com">hardy.aibot@gmail.com</a>.</p>
+<section aria-labelledby="information"><h2 id="information">Information we access and why</h2>
+<p>When you authorize a Google connection, the application receives your Google account email address and identifier, the approved permissions and connection information. Depending on the access you approve, requested features may read:</p>
+<ul><li><strong>Gmail:</strong> message identifiers, headers such as sender, recipient, subject and date, snippets, and message text needed to search, summarize or answer your question.</li>
+<li><strong>Google Calendar:</strong> event identifiers and details, such as titles, dates, times, descriptions and attendees, needed to review events.</li></ul>
+<p>The current connected Google tools read information; they do not send email or modify calendar events. Available tools depend on both Google's granted permissions and the app's current account and household access rules. Personal connected-account reads require the owner's private conversation.</p>
+<p>We use this information to provide visible features you request, including finding messages, producing summaries, answering questions and reviewing calendar events.</p></section>
+<section aria-labelledby="processing"><h2 id="processing">Local processing and credential protection</h2>
+<p>Assistant requests are processed by AI running locally in the household deployment. This deployment does not send Google-derived content to hosted AI providers.</p>
+<p>A protected credential service handles delegated credentials, Google OAuth client credentials and refresh tokens using Bitwarden Secrets Manager. It obtains short-lived access tokens for authorized requests. Credential values are kept out of the assistant's prompts and responses; selected credentials may be held in the trusted service's memory during authorized use.</p>
+<p>The bootstrap credential needed to access Bitwarden remains in protected server configuration. Local connection metadata includes the account identity, approved permissions, secret references and status. Application access controls and isolated credential handling limit access to these resources.</p>
+<p>The local application can retain requested account content in conversations and artifacts. Storing credentials in Bitwarden does not mean all account content is stored there or that all local records are encrypted at rest.</p></section>
+<section aria-labelledby="retention"><h2 id="retention">Retention, disconnect and deletion</h2>
+<p>Google content and generated summaries may be retained in conversation history, task artifacts, local caches and backups. Operational records can retain connection metadata and status. Records remain until removed by the household operator; backup copies can remain until those backups are purged. The deployment does not apply one automatic retention period to all of these stores.</p>
+<p>Deleting a conversation in the app may remove it from view without erasing its underlying history or artifacts. A successful Google Disconnect action requests revocation and disables the local connection. It does not automatically erase previously retained information, connection metadata or the stored Bitwarden secret.</p>
+<p>You can independently revoke access through <a href="https://myaccount.google.com/connections">Google Account connections</a>. To request access to or deletion of retained information, email <a href="mailto:hardy.aibot@gmail.com">hardy.aibot@gmail.com</a> and identify the connected account and information concerned. The operator may need to confirm your identity. Removal can require manual action across conversations, artifacts, credentials, caches and backups; immediate complete erasure is not promised.</p></section>
+<section aria-labelledby="sharing"><h2 id="sharing">Sharing and Limited Use</h2>
+<p>Google provides account authorization and the Google APIs used for approved requests. Bitwarden provides credential storage. Google-derived account content is not published to this public website.</p>
+<p>Google data is not sold, used for advertising, or used to train or improve general-purpose AI models. Human access is limited to specifically authorized assistance, necessary security work or legal obligations. Any sharing through a user-facing feature must follow the account owner's consent and the app's access rules.</p>
+<p>Hardy Home (house-bot)'s use of information received from Google APIs adheres to the <a href="https://developers.google.com/terms/api-services-user-data-policy">Google API Services User Data Policy</a>, including its Limited Use requirements.</p></section>
+<section aria-labelledby="website"><h2 id="website">This website and support email</h2>
+<p>This static information website has no application login, forms, analytics scripts or advertising trackers. GitHub Pages hosts it and records visitor IP addresses for security under <a href="https://docs.github.com/en/site-policy/privacy-policies/github-general-privacy-statement">GitHub's privacy statement</a>.</p>
+<p>If you email support, the operator receives your email address and message through the email service. Describe the issue without sending passwords or token values.</p></section>
+<section aria-labelledby="changes"><h2 id="changes">Policy changes</h2>
+<p>The effective date identifies this policy version. Material changes to the use of Google account data require updated disclosures and any necessary consent before the new use begins.</p>
+<p><a href="index.html">Return to the overview</a> or read the <a href="terms.html">terms of use</a>.</p></section>
+</main>
+<footer class="site-footer"><div class="wrap footer-inner">
+<p><strong>Hardy Home (house-bot)</strong><br><span class="footer-note">A self-hosted household project.</span></p>
+<nav class="footer-links" aria-label="Footer navigation"><a href="privacy.html">Privacy</a><a href="terms.html">Terms</a><a href="mailto:hardy.aibot@gmail.com">Contact</a></nav>
+</div></footer>
+</body>
+</html>

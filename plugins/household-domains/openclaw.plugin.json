@@ -28,6 +28,7 @@
       "household_contacts_revisions",
       "household_contacts_search",
       "household_diagnostics_evidence",
+      "household_diagnostics_system_status",
       "household_display_publish",
       "household_documents_extract",
       "household_documents_read_extraction",
@@ -372,6 +373,9 @@
       "optional": true
     },
     "household_memory_save_recipe": {
+      "optional": true
+    },
+    "household_diagnostics_system_status": {
       "optional": true
     }
   },

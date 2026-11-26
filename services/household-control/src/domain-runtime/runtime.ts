@@ -37,6 +37,8 @@ import type { HouseholdDatabase } from "../database.ts";
 import type { OpenClawAgentAdapter } from "../openclaw-adapter.ts";
 import type { ArtifactStore } from "../platform/artifacts.ts";
 import { readTaskDiagnosticEvidence } from "./diagnostics.ts";
+import {LocalSystemStatusReader,readSystemStatus,systemStatusAuthorized,assertSystemStatusAuthority} from "./system-status.ts";
+import type {SystemStatusReader} from "./system-status.ts";
 import { ContactsService,ArtifactContactsSourceAccess,createContactsTools } from "../domains/contacts/index.ts";
 import type { ContactPrincipal } from "../domains/contacts/index.ts";
 import { DocumentsService,ArtifactDocumentAccess,LocalDocumentExtractor,createDocumentsTools } from "../domains/documents/index.ts";
@@ -88,6 +90,7 @@ export class HouseholdDomainRuntime {
   private nativeSpawn?: (context:AnalysisFlowContext,request:NativeAnalysisRequest)=>Promise<any>;
   private readonly effects:DomainEffectStore;
   private readonly runner:BoundedProcessRunner;
+  private readonly systemStatus:SystemStatusReader;
   private readonly contacts:ContactsService;
   private readonly contactTools:ReturnType<typeof createContactsTools>;
   private readonly documents:DocumentsService;
@@ -102,12 +105,13 @@ export class HouseholdDomainRuntime {
   private readonly inFlight=new Set<Promise<unknown>>();
   private closed=false;
   constructor(options:{database:HouseholdDatabase;adapter:OpenClawAgentAdapter;artifacts:ArtifactStore;configuration:DomainConfiguration;
-    nativeSandboxCheck?:(sessionKey:string,agentId:string)=>Promise<void>;connectedGoogle?:ConnectedGooglePort}){
+    nativeSandboxCheck?:(sessionKey:string,agentId:string)=>Promise<void>;connectedGoogle?:ConnectedGooglePort;systemStatus?:SystemStatusReader}){
     this.database=options.database;this.adapter=options.adapter;this.artifacts=options.artifacts;this.config=options.configuration;
     this.admission=new NativeAdmission(this.database,this.adapter,this.config.execution.nativeEntries,this.artifacts,{schedulingEnabled:this.config.execution.schedulingEnabled,scheduledToolNames:scheduledCapabilities,profileGrants:this.config.profiles,notificationTargets:this.config.execution.notificationTargets,queuedNoticePolicy:this.config.execution.queuedNoticePolicy??"finish_accepted"});
     this.analysisBindings=new AnalysisAdmissionBindings(this.admission.authority);
     this.authorization=new NativeDomainAuthorization(this.database,this.config.profiles,(packet,id)=>this.admission.externalCurrent(packet,id));
     this.effects=new DomainEffectStore(this.database.domainConnection());this.runner=new BoundedProcessRunner();
+    this.systemStatus=options.systemStatus??new LocalSystemStatusReader(this.runner);
     this.documentAccess=new ArtifactDocumentAccess(this.artifacts);
     this.documents=new DocumentsService(this.documentAccess,new LocalDocumentExtractor({pythonPath:this.config.documents.python,
       readerScriptPath:this.config.documents.script,cacheRoot:this.config.documents.cacheRoot},this.runner));
@@ -165,8 +169,9 @@ export class HouseholdDomainRuntime {
   catalog(context?:BoundNativeToolContext):CatalogTool[]{
     if(!context)return [...domainCatalog,...this.tasks.catalog().filter(tool=>!["task.verify_outcome","task.finish"].includes(tool.name))];
     if(["household-analysis","household-diagnostics"].includes(context.agentId??""))return this.tasks.catalog(context);
-    const grant=this.authorization.catalogGrant(context);
-    return grant?[...domainCatalog.filter(tool=>tool.domain==="effects"||grant.domains.includes(tool.domain)),...this.tasks.catalog(context).filter(tool=>tool.domain==="task"||grant.domains.includes(tool.domain)||tool.name==="analysis.publish_report"&&grant.domains.includes("diagnostics"))]:[];
+    const grant=this.authorization.catalogGrant(context),conversation=this.authorization.root(context);
+    const statusAllowed=systemStatusAuthorized({profile:conversation&&this.database.getProfile(conversation.ownerProfileId),audience:conversation?.audience,grant:grant??undefined});
+    return grant?[...domainCatalog.filter(tool=>(tool.domain==="effects"||grant.domains.includes(tool.domain))&&(tool.name!=="diagnostics.system_status"||statusAllowed)),...this.tasks.catalog(context).filter(tool=>tool.domain==="task"||grant.domains.includes(tool.domain)||tool.name==="analysis.publish_report"&&grant.domains.includes("diagnostics"))]:[];
   }
   private async scope(context:BoundNativeToolContext,signal?:AbortSignal):Promise<RuntimeAuthorizedScope>{
     if(this.closed)throw new DomainError("domain_runtime_stopping",{httpStatus:503});
@@ -301,6 +306,7 @@ export class HouseholdDomainRuntime {
     }
     if(descriptor.domain==="diagnostics"&&!this.database.getProfile(scope.principal.profileId)?.capabilities.includes("viewDiagnostics"))
       throw new DomainError("diagnostic_operator_required",{httpStatus:403});
+    if(descriptor.name==="diagnostics.system_status")this.assertSystemStatusCurrent(scope);
     await this.assertBusinessReady(await this.getTaskContext(context),descriptor);
     if(descriptor.effect==="read")return this.dispatch(descriptor,input,scope,context);
     const admission=this.effects.begin(scope.principal,descriptor.nativeName,String(input.operationId),input,{resumable:["household_memory_source_forget","household_memory_source_supersede","household_memory_remember"].includes(nativeName)});
@@ -354,6 +360,7 @@ export class HouseholdDomainRuntime {
     }
     if(tool.domain==="effects")return {operation:this.effects.inspect(principal,String(args.operationId))};
     if(tool.domain==="diagnostics"){
+      if(tool.name==="diagnostics.system_status")return readSystemStatus(this.systemStatus,{signal:principal.signal,assertCurrent:()=>this.assertSystemStatusCurrent(scope)});
       if(scope.mode!=="diagnostic")throw new DomainError("explicit_diagnostic_task_required",{httpStatus:403});
       return readTaskDiagnosticEvidence({database:this.database,artifacts:this.artifacts,native:this.adapter,profileId:principal.profileId,
         currentConversationId:principal.conversationId,currentSubmissionId:principal.sourcePromptId,currentSessionId:context.sessionId??null,currentGoalId:scope.rootGoalId??null,
@@ -514,7 +521,8 @@ export class HouseholdDomainRuntime {
   registerNativeChild(event:Json,context:Json){return this.admission.child(event,context);}
   bootstrapAccess(event:Json){const ctx=object(event.context);return this.admission.bootstrap(String(ctx.agentId??""),String(ctx.sessionKey??event.sessionKey??""));}
   private assertScheduledTool(scope:AuthorizedScope,name:string){if(scope.packet?.origin?.kind==="scheduled"&&!scope.packet.scheduledTools?.includes(name))throw new DomainError("scheduled_tool_not_authorized",{httpStatus:403});}
-  private catalogForScope(scope:AuthorizedScope){return domainCatalog.filter(tool=>(scope.packet?.origin?.kind!=="scheduled"||scope.packet.scheduledTools?.includes(tool.nativeName))&&(tool.domain==="effects"||scope.grant.domains.includes(tool.domain))&&
+  private assertSystemStatusCurrent(scope:AuthorizedScope){scope.principal.assertCurrent();assertSystemStatusAuthority({profile:this.database.getProfile(scope.principal.profileId),audience:scope.principal.audience,grant:this.config.profiles[scope.principal.profileId]});}
+  private catalogForScope(scope:AuthorizedScope){return domainCatalog.filter(tool=>(tool.name!=="diagnostics.system_status"||systemStatusAuthorized({profile:this.database.getProfile(scope.principal.profileId),audience:scope.principal.audience,grant:this.config.profiles[scope.principal.profileId]}))&&(scope.packet?.origin?.kind!=="scheduled"||scope.packet.scheduledTools?.includes(tool.nativeName))&&(tool.domain==="effects"||scope.grant.domains.includes(tool.domain))&&
     (scope.principal.audience!=="household"||tool.domain==="effects"||scope.grant.sharedDomains.includes(tool.domain)));}
   private async loadTaskCatalog(task:TaskFlowContext){
     const scope=this.taskScopes.get(task);if(!scope)throw new DomainError("task_authority_invalid");scope.principal.assertCurrent();

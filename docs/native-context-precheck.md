@@ -2,18 +2,23 @@
 
 Current status: household control 0.10.2 and the approved pinned OpenClaw V5
 compatibility patch are deployed. Main's selected Qwen `contextTokens`,
-`contextWindow` and `params.num_ctx` are all 65,536; actual native sessions and
-provider calls confirm 64K. The omitted per-model cap is corrected in protected
-and retained inputs, preserving other profiles and all access rules. Native
-compaction, productive new-source continuation and complete scoped Google
-readback passed with real local Qwen. The deployed natural private Gmail check
-passed too. See the [repair record](context-budget-repair.md).
+`contextWindow` and `params.num_ctx` are all **131,072**, with Main-only
+high thinking (native `think:"high"`, mapped to Qwen XHIGH). Live registry,
+deployed serialization, PID/config attestation and isolation checks confirm
+adoption. Two 128K/high capacity requests stopped normally with thinking and
+responses; their roughly 10.8K-token prefill is not near-full 128K or semantic
+certification. The dated **November 25 64K** native compaction, productive
+new-source continuation, complete scoped Google readback and natural private
+Gmail checks remain accepted for those tested workflows. See the
+[repair record](context-budget-repair.md) and [current capacity limits](dual-gpu-model-readiness.md).
 
 The flag-only 32K candidate remains rejected and off. No email/tool/turn counts,
 replacement engine/store or generation/thinking cap was introduced. The following
 sections preserve earlier allocation/investigation evidence, not current native
 budget acceptance. The initial 64K allocation changed two fields but left
 `contextTokens=32768`; provider capacity alone did not establish native64.
+
+The first immediate post-start 128K observer failure was retained under containment. A forward start waited for the listener and unchanged owner observer, then passed without rewriting config; exact initial failure causality remains unconfirmed. Production output and compaction settings are unchanged. Household web access remains unavailable pending deferred network restoration.
 
 ## Earlier 64K allocation result
 

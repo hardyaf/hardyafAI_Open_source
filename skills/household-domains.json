@@ -36,6 +36,10 @@
     "effects": {
       "path": "household-effects/SKILL.md",
       "description": "Inspect durable effect receipts after uncertain writes before recovery. A timeout or missing search result never proves an externally consequential action did not happen."
+    },
+    "diagnostics": {
+      "path": "household-diagnostics/SKILL.md",
+      "description": "Read a fresh private operator snapshot of GPU VRAM, utilization/temperature, loaded-model context and residency, CPU/RAM/disk and service health without changing settings. Scoped task evidence remains explicit diagnosis only; report unavailable readings and measurement limits honestly."
     }
   }
 }

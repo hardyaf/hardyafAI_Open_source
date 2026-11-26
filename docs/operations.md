@@ -69,12 +69,16 @@ account, channel, and user.
 - Main profile: `ollama/qwen3.8:27b-q4_K_M` (pre-production)
 - Default/other profiles: existing `ollama/gpt-oss:20b` settings retained
 - Fallback models: none
-- Context: 32,768
-- Advertised model output metadata: 2,048; effective failed-request cap unmeasured
+- Main Qwen context: **131,072**, aligned across `contextTokens`, `contextWindow` and provider `num_ctx`
+- GPT/default and other profile context: **32,768**, unchanged
+- Main reasoning default: `thinkingDefault=high` → native `think:"high"` → installed Qwen **XHIGH**; supported inline/session overrides retain precedence
+- Advertised model output metadata: 2,048; metadata alone does not enforce native `num_predict`, and no production generation limit was added
 - Provider timeout: 300 seconds
-- Ollama parameters: `num_ctx=32768`, `keep_alive=30m`
+- Main Ollama parameters: `num_ctx=131072`, `keep_alive=30m`; other profiles retain their existing values
 - Memory embeddings: `ollama/qwen3-embedding:8b` (4096 dimensions)
 - Embedding fallback: `none`
+
+The November 26 Main-only promotion updated protected and retained preparation inputs while preserving ownership, modes and all ACLs/xattrs. Boot attestation, isolation audit, live registry and deployed serialization passed. Two bounded 128K/high requests completed normally, with all 66 model layers offloaded and full API GPU residency; about 10.8K prompt tokens does not certify near-full 128K or semantic performance. Model identity, GPT profiles, output options and compaction were not changed. See [readiness and limits](dual-gpu-model-readiness.md). Household web readiness remains unavailable pending deferred network restoration; no network settings were changed.
 
 The earlier host-tool baseline used the full profile; this is superseded for
 managed household agents. Current household policy exposes typed scoped tools
@@ -246,3 +250,12 @@ Do not downgrade new contact/financial data into old readers or replay unknown
 effects. OAuth, Bitwarden access, receipt catalog/grants and standing scheduler
 authorization remain configuration work; agent/UI/diagnostic behavior and full
 restore/functional acceptance remain after the complete build.
+
+
+## Read-only system status
+
+Household control 0.11.0 deploys optional `household_diagnostics_system_status` through the existing diagnostics domain. Protected source/allow-entry promotion, native registration, deployed collection, PID/config attestation and credential-isolation checks passed. It is available only to a current private operator with the diagnostics capability and domain grant, with authority rechecked through collection. Routine authorized status requests need no diagnostic goal. Existing task-evidence diagnosis still requires diagnostic mode.
+
+The tool accepts no arguments and invokes one fixed bounded collector. It observes GPU VRAM/utilization/temperature/power when available, host CPU load and RAM, root-filesystem space, fixed service states and the loopback loaded-model list. It does not load a model or run inference. Device memory, Ollama resident model/cache allocation and context tokens are separate values; CPU load is not utilization. Overall status describes collection completeness, while each service reports its own observed state. Unavailable measurements are explicit and do not become healthy zeroes.
+
+No arbitrary commands, paths, URLs, process lists, environment values or raw logs are exposed. The known application bind failures remain separate, and natural-language chat was not tested while network restoration is deferred. This feature changes no network, model/context/reasoning, credential grants, native core or database settings. See [implementation, checks and deployment acceptance](system-status-diagnostics.md).

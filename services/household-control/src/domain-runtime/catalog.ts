@@ -8,6 +8,8 @@ import type { DomainTool } from "./common.ts";
 
 const operation={type:"string",pattern:"^[A-Za-z0-9][A-Za-z0-9._:-]{7,127}$"};
 const sharedTools:DomainTool[]=[
+  {name:"diagnostics.system_status",capability:"diagnostics",effect:"read",description:"Read current bounded GPU memory, utilization, temperature, CPU/RAM/disk, known service status and loaded-model metadata in an authorized private operator conversation. No shell or configuration changes.",
+    inputSchema:{type:"object",additionalProperties:false,properties:{},required:[]}},
   {name:"effects.inspect",capability:"effects",effect:"read",description:"Read this profile/conversation's durable tool-effect receipt before recovering an uncertain operation. Does not replay or undo work.",
     inputSchema:{type:"object",additionalProperties:false,required:["operationId"],properties:{operationId:operation}}},
   {name:"diagnostics.evidence",capability:"diagnostics",effect:"read",description:"Read bounded redacted task/effect/version evidence only in an explicitly authorized diagnostic task. No raw transcripts, credential reads, shell, repair, replay or configuration changes.",

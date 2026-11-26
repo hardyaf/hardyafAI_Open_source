@@ -1,11 +1,17 @@
 # Context budget and progressive reading repair
 
 Status: **household control 0.10.2 is deployed**. Main's selected Qwen3.8 27B
-Q4_K_M has a **65,536 native working budget and provider allocation**.
+Q4_K_M now has a **131,072 native working budget and provider allocation**, with Main-only high thinking (native `think:"high"`, mapped to Qwen XHIGH).
 OpenClaw is upstream **2026.9.8 with the owner-approved pinned V5 compatibility
 patch**. Its native execution, sessions, compaction, queue, permissions, transcript
 and effect ownership remain in place. This is not an unmodified upstream package
 or a replacement task engine.
+
+## Current default after the November 26 promotion
+
+The protected and retained inputs align all three selected-model context fields at **131,072**. Live Gateway registry and deployed serialization confirm 128K/high; PID/config attestation and isolation checks passed. Two bounded capacity requests completed normally with thinking and responses, all 66 layers on GPU and full API GPU residency. Their roughly 10.8K-token prefill does not establish near-full 128K performance or semantic acceptance.
+
+Model selection, GPT/other profiles, production output options, compaction, permissions and disabled scheduling are unchanged. The initial post-start observer failure was retained under containment; waiting for the listener and unchanged owner observer completed forward startup without rewriting either config. Exact initial failure causality remains unconfirmed. Household web availability remains blocked by deferred network restoration. The **64K repair and compaction/continuation results below are dated November 25 evidence**, not new 128K workload certification. See [current capacity and limits](dual-gpu-model-readiness.md).
 
 ## Causes
 
@@ -18,9 +24,9 @@ both original recovery attempts failed before summary inference.
 The initial 64K promotion changed `contextWindow` and provider `params.num_ctx`
 but missed the selected model's separate `contextTokens=32768` cap. Stock native
 resolution takes the minimum. Provider capacity and GPU residency did not prove
-a 64K native budget. This release changes only that same model's `contextTokens`
+a 64K native budget. The November 25 repair changed only that same model's `contextTokens`
 to 65536 in the protected and retained preparation inputs. Other model profiles,
-global defaults, generation/thinking options, grants and scheduling are unchanged.
+global defaults, generation/thinking options, grants and scheduling were unchanged by that repair.
 Ordinary old resolved session telemetry is recomputed; session databases are not
 rewritten and genuine explicit/locked overrides retain their existing semantics.
 

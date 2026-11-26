@@ -209,7 +209,8 @@ def tighten(config, copy_plugins=True):
         tools = agent.setdefault("tools", {})
         allowed = tools.get("allow", [])
         for existing, discovery in (("household_email_read", "household_email_connections"),
-                                    ("household_calendar_list", "household_calendar_connections")):
+                                    ("household_calendar_list", "household_calendar_connections"),
+                                    ("household_diagnostics_evidence", "household_diagnostics_system_status")):
             if existing in allowed and discovery not in allowed:
                 allowed.append(discovery)
         tools.setdefault("elevated", {})["enabled"] = False
