@@ -21,7 +21,7 @@ function fixture(rejection?: Error, goalResponse?: unknown, rowPatch: Record<str
     calls.push({ method, params });
     if (method === "sessions.describe") return { session: { ...session } };
     if (method === "agent.wait") return waitResult;
-    if (method === "chat.history") return history;
+    if (method === "chat.history") return typeof history==='function'?history(params):history;
     if (["sessions.goal.update", "sessions.goal.clear"].includes(method)) return goalResponse;
     assert.equal(method, "chat.send");
     if (rejection) throw rejection;
@@ -66,6 +66,16 @@ test("atomic native goal start omits ordinary working context while preserving i
     assert.equal(send.message, f.args.text); assert.equal(send.idempotencyKey, f.args.submissionId); assert.equal(send.deliver, false);
     assert.equal(receipt.goalId, "native-protocol-goal"); assert.equal(receipt.runId, "native-protocol-run");
   } finally { await f.adapter.close(); }
+});
+
+test('history follows native page offsets instead of imposing a 200-message conversation ceiling',async()=>{
+  const history=(params:any)=>params.offset===200?{sessionId:'native-protocol-session',messages:[{role:'user',content:'Older',__openclaw:{id:'older'}}],hasMore:false}:{sessionId:'native-protocol-session',messages:[{role:'assistant',content:'Newer',__openclaw:{id:'newer'}}],hasMore:true,nextOffset:200};
+  const f=fixture(undefined,undefined,{},undefined,history);
+  try{const result=await f.adapter.listMessages(f.args.conversation);assert.deepEqual(result.map(x=>x.id),['older','newer']);assert.equal(f.calls.filter(x=>x.method==='chat.history').length,2);assert.equal(f.calls.at(-1)!.params.sessionId,'native-protocol-session');}finally{await f.adapter.close();}
+});
+
+test('large human text enters native chat without the former 16K/20K admission cap',async()=>{
+  const f=fixture();try{const text='Large source '.repeat(8000);await f.adapter.submitMessage({...f.args,text});assert.equal(f.calls.find(x=>x.method==='chat.send')!.params.message,text);}finally{await f.adapter.close();}
 });
 
 test("ordinary native chat retains its requested working context and has no goal-start intent", async () => {

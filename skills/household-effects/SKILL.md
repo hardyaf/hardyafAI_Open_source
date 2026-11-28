@@ -3,10 +3,8 @@ name: household-effects
 description: Inspect an existing scoped action receipt before recovering an uncertain write.
 ---
 
-# Household effect receipts
+# Effect inspection guidance
 
-Use `household_effects_inspect` with the original `operationId` when an action times out, is interrupted, or has an uncertain response. The existing effect owner reports committed, failed, in-progress or unknown state for this person/conversation; it never replays or undoes the action.
+household_effects_inspect reports an existing operation's committed, failed, in-progress or unknown state within current owner/conversation permissions. It neither replays nor undoes the action. Use it when useful to reconcile an uncertain write; ordinary successful actions need no separate receipt ceremony.
 
-A missing response or search result does not prove no write occurred. Reconcile unknown outcomes through the owning domain before another attempt. Keep the same operation identity for an exact retry; changed arguments require an explicit new operation after reconciliation.
-
-Receipt existence proves neither unrelated work nor financial acceptance. Read current authorized business state where required. Credentials, other profiles' receipts and raw stores remain unavailable. Task receipt association and completion belong to the existing application; do not create another ledger.
+A lost response or empty search does not establish that nothing happened. Stable operation identity supports an exact retry; reconcile unknown effects before creating another. Existing owners capture receipts automatically. A receipt proves its own effect, not unrelated work or financial acceptance. Credentials and other profiles' stores remain separate.

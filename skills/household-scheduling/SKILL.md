@@ -4,33 +4,10 @@ description: Declare, inspect and manage authorized future household tasks throu
 metadata: {"openclaw":{"emoji":"⏰"}}
 ---
 
-# Future tasks
+# Scheduling guidance
 
-Compose authorized `household_schedule_*` tools for an explicit future run or
-reminder. The native scheduler owns due time, durable identity and run history;
-do not start a second queue, loop, host timer or background poller. Resolve
-relative dates with the runtime clock and time zone; clarify materially missing
-time or ambiguous recurrence. Use one-off instants, intervals or a supported
-cron/time-zone expression according to intent.
+The existing native scheduler owns future tasks, due time and run history. Compose household_schedule_* tools when scheduling is available. Current deployment keeps scheduling disabled and historical jobs retained; a saved disabled job will not run. Do not imply activation or delivery from a saved declaration.
 
-Preserve a useful self-contained task message and the original private/shared audience.
-Delivery defaults to the trusted originating Discord destination or the configured private notification route for app requests.
-Use `delivery:{mode:"announce",destination:"notifications"}` for the configured
-protected notification destination, or `delivery:{mode:"none"}` for explicitly
-quiet work. The application resolves recipients; do not supply raw channel IDs,
-webhook URLs or arbitrary people. If no authorized destination is configured,
-clarify or report the missing route; do not silently save a non-delivering reminder. Scheduled execution rechecks its own current grants;
-creating a job never grants provider, household, diagnostic or credential access.
-Route and audience grants are rechecked when the scheduled task runs and before a new native notice is prepared. Native acceptance of a prepared immutable notice commits delivery; an already queued notice may finish after a later grant change. Do not promise that cancellation retracts an accepted message. The strict per-retry policy cannot activate with the installed native delivery interface.
-Execution completion and delivery status are separate: an unknown or partial
-send must be reconciled rather than blindly repeated.
-If activation is disabled or unconfigured, report the saved job as disabled and
-state that it will not run. Do not imply a reminder was delivered merely because
-its declaration saved.
+Interpret dates against the current clock/time zone and resolve material ambiguity. The supported APIs describe one-off, interval and cron schedules. Useful task text and the original audience support later execution. Trusted delivery configuration supplies recipients; job creation never grants credentials or future data access. Each run rechecks current permissions.
 
-Get the current job/configuration revision before an edit or cancellation.
-Cancellation disables future work while retaining history; removal requires
-current destructive approval. Neither rolls back completed external effects.
-After an uncertain response, inspect the central effect receipt and owned native
-job state before retrying a declaration. The same rules apply to future work
-identified while reasoning through a brain dump.
+Current revisions protect edits. Cancellation stops future work and retains history; it does not undo completed effects or retract already accepted notices. The private owner can remove ordinary data under current permissions; other profiles retain their configured approval policy. Inspect unknown send/declaration outcomes before repeating them. These are suggestions and API semantics, not a mandatory flow.

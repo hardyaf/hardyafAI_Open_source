@@ -15,7 +15,7 @@ export function createNativeContextProjection(nativeName, value, params) {
   const receipt = value.result, message = receipt.result;
   if (!identifier(receipt.connectionId) || typeof receipt.account !== "string" || receipt.account.length > 320 ||
       !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(receipt.account) || !object(message) || !identifier(message.id) ||
-      message.bodySource !== "text/plain" || typeof message.body !== "string" || !message.body.length ||
+      !["text/plain","text/html"].includes(message.bodySource) || typeof message.body !== "string" || !message.body.length ||
       typeof message.bodyComplete !== "boolean" || typeof message.bodyTruncated !== "boolean" ||
       !Array.isArray(message.omissions) || message.omissions.some(code => typeof code !== "string" || !/^[a-z_]{1,80}$/.test(code))) return;
   const window = message.bodyWindow;
@@ -27,14 +27,14 @@ export function createNativeContextProjection(nativeName, value, params) {
       Array.from(message.body).length !== window.endOffset - window.offset ||
       message.bodyComplete !== (window.complete && window.offset === 0) ||
       message.bodyTruncated !== (!window.complete || window.offset > 0 || window.endOffset < window.totalChars)) return;
-  if (!object(params) || Object.keys(params).some(key => !["connectionId", "messageId", "format", "bodyWindow"].includes(key)) ||
+  if (!object(params) || Object.keys(params).some(key => !["connectionId", "messageId", "format", "bodyWindow","delivery"].includes(key)) ||
       params.messageId !== message.id || params.connectionId !== undefined && params.connectionId !== receipt.connectionId ||
       params.format !== undefined && params.format !== "full") return;
-  let requestedOffset = 0, maximum = 60000;
+  let requestedOffset = 0, maximum = Infinity;
   if (params.bodyWindow !== undefined) {
     const request = params.bodyWindow;
     if (!object(request) || Object.keys(request).some(key => !["offset", "maxChars", "version"].includes(key)) ||
-        request.offset !== undefined && !integer(request.offset) || !integer(request.maxChars) || request.maxChars < 1 || request.maxChars > 60000 ||
+        request.offset !== undefined && !integer(request.offset) || !integer(request.maxChars) || request.maxChars < 1 ||
         request.version !== undefined && request.version !== window.version) return;
     requestedOffset = request.offset ?? 0; maximum = request.maxChars;
     if (requestedOffset > 0 && request.version === undefined) return;

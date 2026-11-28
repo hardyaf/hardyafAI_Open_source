@@ -22,9 +22,38 @@ META = {"get_goal", "create_goal", "update_goal", "sessions_spawn", "sessions_yi
         "session_status", "subagents", "sessions_send", "tool_search", "tool_describe",
         "tool_call", "progress_card", "web_search", "web_fetch"}
 
-def policy_checks(config):
+def workshop_policy(agent, workshop):
+    """The owner lab is online and unrestricted internally; host credentials stay outside."""
+    if not isinstance(workshop, dict):
+        return False
+    data = workshop.get("dataRoot")
+    if not isinstance(data, str) or not pathlib.Path(data).is_absolute() or not workshop.get("ownerProfileId"):
+        return False
+    sandbox = agent.get("sandbox", {}); docker = sandbox.get("docker", {}); tools = agent.get("tools", {})
+    binds = [data + "/system/" + name + ":/" + name + ":rw" for name in ["usr", "etc", "var", "opt", "tmp", "root"]]
+    binds.append(data + "/reference:/reference:ro")
+    return (sandbox.get("mode") == "all" and sandbox.get("backend") == "docker"
+        and sandbox.get("scope") == "agent" and sandbox.get("workspaceAccess") == "none"
+        and sandbox.get("workspaceRoot") == workshop.get("sandboxRoot")
+        and docker.get("image") == workshop.get("image") and docker.get("binds") == binds
+        and docker.get("network") == "bridge" and docker.get("readOnlyRoot") is False
+        and docker.get("user") == "0:0" and docker.get("gpus") == "driver=cdi,device=nvidia.com/gpu=all"
+        and not any(key in docker for key in ["memory", "memorySwap", "cpus", "pidsLimit", "setupCommand"])
+        and docker.get("env") == {"HOME": "/workspace", "PYTHONUNBUFFERED": "1", "HARDY_WORKSHOP": "1"}
+        and sandbox.get("browser", {}).get("allowHostControl") is False
+        and sandbox.get("browser", {}).get("binds") == []
+        and tools.get("fs", {}).get("workspaceOnly") is False
+        and tools.get("exec", {}).get("host") == "sandbox" and tools.get("exec", {}).get("mode") == "full")
+
+
+def policy_checks(config, workshop=None):
     """Reject unreviewed tool routes, native escapes and unsandboxed raw tools."""
     checks = {}
+    if workshop is None:
+        try:
+            workshop = json.loads(DOMAINS.read_text()).get("execution", {}).get("workshop")
+        except (OSError, ValueError):
+            pass
     agents = config.get("agents", {})
     entries = agents.get("entries", {})
     checks["explicit_agent_roster"] = bool(entries) and not agents.get("list")
@@ -53,7 +82,11 @@ def policy_checks(config):
             sandbox = agent.get("sandbox", {})
             docker = sandbox.get("docker", {})
             execution = tools.get("exec", {})
-            checks[name + "_offline_sandbox"] = (
+            if name == "main" and workshop:
+                checks[name + "_workshop_separation"] = workshop_policy(agent, workshop)
+                checks[name + "_workshop_no_inherited_limits"] = not any(key in inherited for key in ["memory", "memorySwap", "cpus", "pidsLimit", "setupCommand"])
+            else:
+                checks[name + "_offline_sandbox"] = (
                 sandbox.get("mode") == "all" and sandbox.get("backend", "docker") == "docker"
                 and sandbox.get("workspaceAccess") == "none"
                 and docker.get("network") == "none" and docker.get("readOnlyRoot") is True
@@ -85,6 +118,34 @@ def protected(path, private=False):
 
 def config_digest(path):
     return hashlib.sha256(path.read_bytes()).hexdigest()
+
+def autonomy_patch_checks():
+    manifest = ROOT / "source/deploy/hardybot/patches/autonomy-runtime.json"
+    if not manifest.exists(): return {}
+    valid = protected(manifest) and not manifest.is_symlink()
+    try:
+        data = json.loads(manifest.read_text()); rows = data["files"]
+        valid = valid and data["nativeVersion"] == "2026.9.8" and len(rows) == 10
+        seen = set()
+        for row in rows:
+            relative = pathlib.PurePosixPath(row["path"]); package = row["package"]
+            valid = valid and package in {"openclaw", "searxng"} and not relative.is_absolute() and ".." not in relative.parts and relative.parts[0] == "dist" and relative.suffix == ".mjs"
+            key = (package, str(relative)); valid = valid and key not in seen; seen.add(key)
+            target = (NATIVE_PACKAGE if package == "openclaw" else ROOT / "plugin-load/1") / relative
+            valid = valid and protected(target) and not target.is_symlink() and config_digest(target) == row["afterSha256"]
+    except (OSError, ValueError, KeyError, TypeError): valid = False
+    return {"autonomy_native_provider_overlays_pinned": bool(valid)}
+
+def overlay_expected(relative, base_hash):
+    manifest = ROOT / "source/deploy/hardybot/patches/autonomy-runtime.json"
+    if not manifest.exists(): return base_hash
+    if not all(autonomy_patch_checks().values()): return base_hash
+    for row in json.loads(manifest.read_text())["files"]:
+        if row["package"] == "openclaw" and row["path"] == relative:
+            if row["beforeSha256"] != base_hash: raise ValueError("autonomy_base_pin_mismatch")
+            return row["afterSha256"]
+    return base_hash
+
 
 def native_patch_checks(package_root, manifest_path):
     """Verify the exact protected patch; this adds no account or execution authority."""
@@ -130,7 +191,7 @@ def native_patch_checks(package_root, manifest_path):
             target = package_root / relative
             target_safe = protected(target) and not target.is_symlink()
             paths_safe = paths_safe and target_safe
-            hashes_match = hashes_match and target_safe and config_digest(target) == row.get("afterSha256")
+            hashes_match = hashes_match and target_safe and config_digest(target) == overlay_expected(relative, row.get("afterSha256"))
         checks["native_patch_files_protected"] = paths_safe
         checks["native_patch_hashes"] = hashes_match
     except (OSError, ValueError, TypeError, KeyError):
@@ -159,6 +220,25 @@ def runtime_entry_matches(cmdline, environment, node_path, config_path, package_
             scripts.append(path)
     return bool(scripts) and scripts[0].resolve().is_relative_to(pathlib.Path(package_root).resolve()) and protected(scripts[0])
 
+def workshop_patch_checks():
+    try:
+        if not json.loads(DOMAINS.read_text()).get("execution", {}).get("workshop"):
+            return {}
+        manifest = ROOT / "source/deploy/hardybot/patches/workshop-runtime.json"
+        data = json.loads(manifest.read_text())
+        rows = data.get("files", [])
+        expected = {"dist/bash-tools-3n5rTZUL.mjs", "dist/fs-bridge-CkHTzWVb.mjs", "dist/household-workshop-fs-20261127.mjs"}
+        valid = protected(manifest) and data.get("nativeVersion") == "2026.9.8" and len(rows) == 3 and {row.get("path") for row in rows} == expected
+        for row in rows:
+            relative = pathlib.PurePosixPath(row["path"])
+            target = NATIVE_PACKAGE / relative
+            valid = valid and relative.parts[0] == "dist" and ".." not in relative.parts and not relative.is_absolute()
+            valid = valid and protected(target) and config_digest(target) == row["afterSha256"]
+        return {"workshop_native_compatibility_pinned": bool(valid)}
+    except (OSError, ValueError, KeyError):
+        return {"workshop_native_compatibility_pinned": False}
+
+
 def attest(pid):
     if os.geteuid() != 0:
         raise PermissionError("root_required")
@@ -168,7 +248,7 @@ def attest(pid):
         "/proc", str(pid), "environ").read_bytes().split(b"\0") if b"=" in item)
     if not runtime_entry_matches(cmdline, environment, expected, CONFIG, NATIVE_PACKAGE):
         raise ValueError("gateway_runtime_mismatch")
-    checks = policy_checks(json.loads(CONFIG.read_text()))
+    checks = {**policy_checks(json.loads(CONFIG.read_text())), **workshop_patch_checks(), **autonomy_patch_checks()}
     if not checks or not all(checks.values()):
         raise ValueError("native_policy_unsafe")
     patch_checks = native_patch_checks(NATIVE_PACKAGE, NATIVE_PATCH)
@@ -190,6 +270,7 @@ def inspect():
     try:
         config = json.loads(CONFIG.read_text())
         checks.update(policy_checks(config))
+        checks.update(workshop_patch_checks())
         checks.update(native_patch_checks(NATIVE_PACKAGE, NATIVE_PATCH))
         checks["root_config"] = protected(CONFIG, private=True)
         checks["root_domains"] = protected(DOMAINS, private=True) and stat.S_IMODE(DOMAINS.stat().st_mode) == 0o440

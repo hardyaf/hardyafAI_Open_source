@@ -21,7 +21,7 @@ const scheduledSystemTools=new Set([...taskNativeNames.filter(name=>!["household
 
 type Json=Record<string,unknown>;
 export type NativeEntryRule={profileId:string;externalUserId:string;channelId:string;agentId:string;audience:"private"|"household";brainDump:boolean};
-export type NativeAdmissionOptions={schedulingEnabled:boolean;scheduledToolNames:readonly string[];profileGrants:Readonly<Record<string,ProfileDomainGrant>>;diagnosticCommand?:string|null;mediaRoot?:string;notificationTargets?:Readonly<Record<string,NativeDeliveryTarget>>;queuedNoticePolicy?:QueuedNoticePolicy};
+export type NativeAdmissionOptions={workshopOwnerProfileId?:string;schedulingEnabled:boolean;scheduledToolNames:readonly string[];profileGrants:Readonly<Record<string,ProfileDomainGrant>>;diagnosticCommand?:string|null;mediaRoot?:string;notificationTargets?:Readonly<Record<string,NativeDeliveryTarget>>;queuedNoticePolicy?:QueuedNoticePolicy};
 export type NativeObservation={runId?:string|null;sessionKey?:string|null;sessionId?:string|null;agentId?:string|null;channel?:string|null;channelId?:string|null;senderId?:string|null;jobId?:string|null;sourceMessageId?:string|null;sourceText?:string|null;exactCurrentMessage?:boolean;supportedMediaExpected?:boolean;inputProvenance?:unknown;assertCurrent?:()=>void};
 const hash=(value:string)=>createHash("sha256").update(value).digest("hex");
 export class NativeAdmission {
@@ -207,7 +207,7 @@ export class NativeAdmission {
       root.agentId!==agentId||root.sessionId!==sessionId||root.sessionKey!==conversation.sessionKey||root.rootSessionKey!==conversation.sessionKey||
       root.sourceId!==sourceId||root.runId!==previousRunId||root.goalId!==null||root.mode==="diagnostic")throw fail();
     const childKey=provenance.sourceSessionKey,child=this.authority.get(childKey);
-    if(!child||child.agentId!=="household-analysis"||child.parentSessionKey!==root.sessionKey||child.rootSessionKey!==root.rootSessionKey||
+    if(!child||!(["household-analysis"].includes(child.agentId)||child.agentId===root.agentId&&conversation.ownerProfileId===this.options.workshopOwnerProfileId&&conversation.audience==="private")||child.parentSessionKey!==root.sessionKey||child.rootSessionKey!==root.rootSessionKey||
       child.sourceId!==sourceId||child.goalId!==null||child.mode!==root.mode||!child.runId||!/^[-_A-Za-z0-9]{1,128}$/.test(child.runId))throw fail();
     const parentKey=sessionKey.startsWith(`agent:${agentId}:`)?sessionKey:`agent:${agentId}:${sessionKey}`;
     // The installed native owner has separate exact identities for a yielded
@@ -223,7 +223,7 @@ export class NativeAdmission {
       const device=this.database.getDevice(source.originDeviceId!),binding=this.database.getSubmissionDomainBinding(sourceId);
       const latestConversation=this.database.getConversation(conversation.id);
       if(!profile||profile.agentId!==agentId||profile.role==="child"||!profile.capabilities.includes("chat")||["paused","offline"].includes(profile.status)||
-        !grant?.enabled||!grant.domains.includes("analysis")||conversation.audience==="household"&&!grant.sharedDomains.includes("analysis")||
+        !grant?.enabled||!(child.agentId===root.agentId&&profile.role==="admin"&&profile.id===this.options.workshopOwnerProfileId&&conversation.audience==="private"&&grant.scopes.includes("personal")||grant.domains.includes("analysis"))||conversation.audience==="household"&&!grant.sharedDomains.includes("analysis")||
         device?.status!=="active"||device.deviceKind!=="personal"||device.profileId!==profile.id||!binding||binding.goalBound||
         binding.controlWatermark!==this.database.getGoalControlIssuedAt(conversation.id)||binding.audience!==conversation.audience||
         !latestConversation||latestConversation.sessionKey!==conversation.sessionKey||latestConversation.agentId!==agentId||latestConversation.audience!==conversation.audience||
@@ -231,7 +231,7 @@ export class NativeAdmission {
     };
     current();
     const terminal=await this.adapter.observeAnalysisChild({childSessionKey:childKey,runId:child.runId,parentSessionKey:parentKey,
-      expectedSessionId:child.sessionId,rootTaskId:"conversation:"+conversation.id,assertCurrent:current});
+      expectedAgentId:child.agentId,expectedSessionId:child.sessionId,rootTaskId:"conversation:"+conversation.id,assertCurrent:current});
     if(!["complete","failed","cancelled"].includes(terminal.state)||await this.currentGoal(conversation,sessionId,null))throw fail();
     current();
     if(!this.database.submissions.adoptGoalFreeNativeRun(sourceId,previousRunId,runId,()=>{

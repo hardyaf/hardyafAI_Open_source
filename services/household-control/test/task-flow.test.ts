@@ -57,7 +57,7 @@ test("question survives service reconstruction and accepts ordinary freeform cor
   const restarted = new TaskFlowService(f.ports), state = await restarted.snapshot(f.ctx);
   assert.equal(state.question?.text, "Which child is attending?");
   assert.equal(f.ctx.native.goalStatus, "active");
-  assert.equal((await finalizeTask(restarted, f.ctx))?.action, "finalize");
+  assert.equal(await finalizeTask(restarted, f.ctx), undefined);
   const corrected = f.reply("Both, and move it to next Friday; also redo that card scan.");
   const result = await restarted.execute("task.bind_reply", { expectedRevision: f.revision(), questionArtifactId: state.checkpoint!.questionArtifactId,
     relation: "answer", affectedOutcomeIds: ["event"] }, corrected) as { currentHumanPrompt: string };
@@ -333,13 +333,11 @@ test("self-authored handoff and question artifacts cannot prove output delivery"
   await assert.rejects(() => verifyTaskArtifact(f.ctx, snapshot.checkpoint!.checkpointArtifactId!, f.ports.artifacts), /task_artifact_not_outcome_evidence/);
 });
 
-test("incomplete finalize requests a bounded repair and does not claim an unbounded host loop", async () => {
+test("optional incomplete helper metadata does not force a repair turn", async () => {
   const f = fixture();
   await f.call("task.checkpoint", { phase: "working", summary: "Event still missing", nextAction: "Create the event" });
   const decision = await finalizeTask(f.service, f.ctx);
-  assert.equal(decision?.action, "revise");
-  assert.equal(decision?.retry?.maxAttempts, 3);
-  assert.match(decision!.retry!.instruction, /native phase child\/yield/);
+  assert.equal(decision,undefined);
 });
 
 test("settled native completion explicitly finalizes and active completion retries only the facade", async () => {
@@ -350,14 +348,14 @@ test("settled native completion explicitly finalizes and active completion retri
   f.receipts.set("event-operation", "current-event-proof");
   await f.service.complete(f.ctx, { summary: "Created event", references: [{ kind: "operation", id: "event-operation" }] });
   const pending = await finalizeTask(f.service, f.ctx);
-  assert.equal(pending?.action, "revise"); assert.match(pending!.retry!.instruction, /household_task_complete/);
-  assert.match(pending!.retry!.instruction, /Do not repeat business effects/);
+  assert.equal(pending,undefined);
   f.ctx.native.goalStatus = "complete";
   const settled = await finalizeTask(f.service, f.ctx);
-  assert.equal(settled?.action, "finalize"); assert.equal(settled?.retry, undefined);
+  assert.equal(settled,undefined);
   f.receipts.set("event-operation", "changed-owner-truth");
   const changed = await finalizeTask(f.service, f.ctx);
-  assert.equal(changed?.action, "revise"); assert.match(changed!.reason, /evidence changed/);
+  assert.equal(changed,undefined);
+  assert.equal(await f.service.canComplete(f.ctx),false,"The optional helper still detects changed evidence when explicitly queried");
 });
 
 test("summary-only completion requests real outcome semantics without writing a task or claiming success", async () => {
@@ -627,7 +625,7 @@ test("independent same-chat actions cannot supply proof or completion for the re
   f.receipts.set("side-event-operation","separate-event");
   assert.equal((await f.service.associateEvidence(side,{references:[{kind:"operation",id:"side-event-operation"}]})).state,"unmatched");
   await assert.rejects(()=>f.service.complete(side,{summary:"Done"},[{kind:"operation",id:"side-event-operation"}]),/independent_topic_cannot_complete_waiting_task/);
-  assert.equal((await finalizeTask(f.service,side))?.action,"finalize");
+  assert.equal(await finalizeTask(f.service,side),undefined);
   const after=await f.service.snapshot(side);
   assert.equal(after.question?.text,"Which date?");
   assert.deepEqual(after.handoff?.verifications,{});

@@ -17,6 +17,8 @@ export type NativeDomainContext = {
   confirmedSourceIds?: readonly string[];
   confirmedSourceText?: Readonly<Record<string,string>>;
   destructiveApproved?: boolean;
+  /** Trusted private owner execution; never populated from tool arguments. */
+  ownerAutonomy?: boolean;
   /** Trusted transport/config routes only; tool arguments cannot select raw recipients. */
   deliveryTarget?: NativeDeliveryTarget;
   notificationTarget?: NativeDeliveryTarget;

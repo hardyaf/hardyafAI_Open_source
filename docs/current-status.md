@@ -1,7 +1,35 @@
 # Current household assistant status
 
-As of November 26, 2026. **Pre-production. Household control 0.11.0 and protected Connections remain deployed; household web access is currently unavailable while router reservation/restoration is deferred. One child profile’s Fitbit session control is enabled. Additional browser enrollment and pairing remain pending.**
+As of November 27, 2026. **Pre-production. Household control 0.14.0, the independent workshop and protected Connections are deployed; household web access is restored after the local address reservation took effect. One child profile’s Fitbit session control is enabled. Additional browser enrollment and pairing remain pending.**
 Complete household functional acceptance remains open.
+
+## November 27 Google write-access option deployed (0.14.0)
+
+Gmail and Calendar connections now have a deployed read/write choice in web and Android, with in-place consent upgrades and immediate local read-only downgrade. New composable Gmail writes and connected-calendar writes reuse the protected credential service, current identity/source/account checks and existing effect ledger. The candidate passed 694 backend tests with no skips, 219 source/import, 23 audit and 11 installer checks, plus Android unit/lint/assembly. No real Google data was mutated. Protected activation and independent verification passed: all 445 promoted files, two configurations and preserved metadata match; all three services are running and 0.14.0 reports ready/connected. The full credential-isolation audit, current Gateway PID/config attestation and 37 policy/pin checks passed. All 566 prior artifacts, persistent workshop, native overlays and Ollama serial serving were retained. Actual account write grants still require the owner to select Enable write access and complete Google consent. See [implementation and acceptance](google-connection-write.md).
+
+## November 27 autonomy follow-up deployed (0.13.0)
+
+The owner authorized removing the remaining unnecessary workflow and resource restrictions, while deferring changes to Ollama serialization/model residency. The 0.13.0 candidate makes all eleven skill guides optional, removes guide-digest admission and question/outcome/progress ceremonies, permits ordinary private-owner data actions under existing permissions, removes added native child/exec/local-wait/evidence ceilings, and expands readonly Gmail to full text, inert HTML, attachments and file delivery. Large user input and native history pagination no longer have the former application ceilings. Actual context accounting, current identity/source/audience, credential custody and cancellation remain in place.
+
+The candidate passed 668 backend tests with the patched SDK (zero skips), 23 audit, 11 installer, 213 source/import and 16 direct native checks. A real local model built and discarded a temporary skill, checked its own code, corrected an error and delivered three files; independent file hashes, 1003 program cases and synthetic attachment/workshop replay passed. See [implementation and acceptance](autonomy-guidance.md). Protected activation and independent live verification passed: all 854 file updates, two configurations and preserved metadata match; all 566 prior artifacts remain intact. All three services are running and 0.13.0 reports ready/connected. Current PID/config attestation, credential UID/private-state isolation and 37 policy/pin checks passed. The original V5/workshop manifests remain unchanged, with one explicitly chained V5 builtin successor among ten separately pinned overlays. Main's 131072/high defaults, Ollama's single parallel request/single loaded model, held onboarding and disabled scheduling are unchanged.
+
+## November 27 independent workshop deployed (0.12.0)
+
+Main now works directly in a persistent environment on the large data volume. It can create and discard temporary skills, retain useful methods, install software, use networking and both GPUs, and develop source improvements in editable copies. Added resource quotas, workspace-only file restrictions, mandatory helpers and formal goals, prescribed workshop methods and automatic pruning are removed. See [implementation and restriction audit](independent-workshop.md).
+
+All three isolated natural model cases passed: investigate/build/debug a solver and verify its result, reuse its retained method in a new conversation, and inspect/edit/test its source before delivering a real patch. Delivered hashes and independent result checks passed, including 13/13 source-improvement tests. The candidate passed 654 backend, 22 credential-audit, 11 installer and 209 source/import checks.
+
+The ordinary deployment is verified against exact source/configuration/native compatibility hashes and preserved metadata. The existing ArtifactStore moved intact to the large volume; all 566 prior immutable objects were independently verified. Gateway PID/protected-config attestation and all three service states passed; the legacy user Gateway remains inactive. The original eight V5 files and Main's 131072/high defaults are preserved; the separately pinned workshop compatibility changes two other native modules and adds one namespace filesystem adapter. No database was restored, held account/grant onboarding was activated, or scheduling enabled.
+
+Two failed activation attempts were retained: a deployment-helper service-stop timeout and missing restart function, followed by an immediate post-start observer race. Lifecycle handling now respects native systemd deadlines, restores prior services on a pre-write failure, and waits for the native API. Six targeted lifecycle/readiness tests and the actual live idle observer passed. The successful promotion completed before this documentation refresh; the protected release/reference snapshot retains its build-time provenance.
+
+## November 26 Android Connections update (0.6.2-alpha)
+
+Android **0.6.2-alpha / code 12** is built from the current client source. Its owner-only Connections screen explicitly names the existing Bitwarden setup, username/password, Google setup and Google account actions. It reuses the existing protected forms, signed HTTPS requests and isolated credential service. Identity/grant gates, screenshot protection and field-clearing behavior are unchanged; no new credential store or backend operation was introduced.
+
+Ubuntu assembly and lint passed with zero lint errors, alongside **11/11 unit tests**, zero failures or skips. The APK package and signing certificate match the prior installer for an in-place update. Phone installation and real credential-entry acceptance remain pending owner steps. The live backend remains **0.11.0**; no Gateway, model, grant, provider or database change was made for this client build.
+
+The separate local network restoration is verified: existing web and protected services recovered automatically, strict HTTPS readiness passes, and the native adapter is connected. Earlier network-unavailability notes below describe those earlier acceptance runs. No new Gmail provider test was performed during restoration. See [Android usage and update instructions](../apps/hardy-home-android/README.md).
 
 ## November 26 public-source cleanup prepared (source 0.11.1)
 
@@ -29,10 +57,10 @@ The native Gateway is operational and was idle after the checks. Household web s
 
 ## Release and configuration
 
-The ordinary release is household control **0.11.0**, API **0.8.0**, application schema **8**, Uplift schema **1**. The protected plugin manifest and native registration expose **91 tool names** before contextual grant filtering. Protected manifests and receipts bind exact source, configuration and executed checks. Isolated runs used synthetic data and retained earlier failures. SSH access resumed after the service restart. The cause of the intermittent remote greeting failure remains unconfirmed.
+The ordinary release is household control **0.12.0**, API **0.8.0**, application schema **8**, Uplift schema **1**. The protected plugin manifest and native registration expose **91 tool names** before contextual grant filtering. Protected manifests and receipts bind exact source, configuration and executed checks. Isolated runs used synthetic data and retained earlier failures. SSH access resumed after the service restart. The cause of the intermittent remote greeting failure remains unconfirmed.
 
 The ordinary runtime uses OpenClaw **2026.9.8 with the owner-approved pinned V5 native compatibility patch (eight files)** and the separately installed
-Discord adapter **2026.9.7**, Node **24.21.0** and local Ollama **0.32.15**. Main uses **Qwen3.8 27B Q4_K_M at 128K for both native working budget and provider allocation, with Main high thinking**. GPT-OSS defaults and other
+workshop-only compatibility patch (two other modules plus one filesystem adapter), Discord adapter **2026.9.7**, Node **24.21.0** and local Ollama **0.32.15**. Main uses **Qwen3.8 27B Q4_K_M at 128K for both native working budget and provider allocation, with Main high thinking**. GPT-OSS defaults and other
 profiles remain unchanged; no fallback or hosted inference was added. The earlier
 single-model measurement was fully GPU-resident at 18,912 MiB total GPU use; it
 does not establish combined OCR/embedding/four-person capacity.
@@ -524,3 +552,12 @@ through the private management console. Child Two's protected Fitbit binding rem
 disabled until pairing and fresh-step evidence. Child One's binding and the
 current household release remain unchanged.
 
+
+
+## November 27 workshop implementation and acceptance (0.12.0)
+
+The owner authorized a persistent, unrestricted experimental environment. The 0.12.0 candidate gives Main direct native file, execution and browser tools in private owner conversations, network and package access, both GPUs, writable persistent software and generous data-volume storage, with no added CPU/RAM/PID quotas. Mandatory helpers, project slugs, registration, formal goals and publishing sequences are removed. Temporary skills can be written, run, revised or discarded as ordinary files. Final file links attach real scoped artifacts, including streamed files beyond the model input buffer limit.
+
+Ubuntu checks pass: 654 backend tests, 22 credential-audit tests, 11 installer tests and 209 source/import checks. Actual native execution verifies package/network access, persistent software across containers, both GPU memory round trips and a fresh browser. Main independently built/debugged a solver, delivered verified results, and reused the method in a new conversation. Main also inspected its reference code, edited a writable copy, debugged its regression fixture and delivered a real patch and report; an independent guest run passed all 13 relevant tests. Production activation and independent live verification subsequently passed as recorded above. The deployment also removes obsolete gateway CLI recipes, mandatory conductor/phase-ledger instructions, scheduling directives and compulsory solution preflights from the live workspace instructions. Personal memory, audience and communication guidance is preserved.
+
+A separately pinned workshop-only compatibility patch changes two native modules and adds a guest-filesystem adapter. It removes compound-script rejection and root-file host-read failures. The original eight V5 context files, Main's 131072/high defaults, existing credentials/grants and disabled scheduling are retained. See [workshop implementation and restriction audit](independent-workshop.md). No commit or publication was requested.

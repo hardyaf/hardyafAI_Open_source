@@ -1,5 +1,8 @@
+import {writeGoogle} from "./google-write.ts";
+import {googleHttp} from "./google-http.ts";
+import {calendarId,providerId} from "../domains/google/write-input.ts";
 import { googleMessageReadInput } from "../domains/google/message-read.ts";
-import { projectGoogleMessage } from "./google-message.ts";
+import { projectGoogleMessage,projectGoogleAttachment,googleMessageParts } from "./google-message.ts";
 import { createHash, timingSafeEqual } from "node:crypto";
 import { ConnectionsError, fields, object, string } from "./contracts.ts";
 import type { GoogleAuthorization, GoogleProvider, GoogleReadOperation } from "./contracts.ts";
@@ -57,24 +60,27 @@ export async function createGoogleProvider(): Promise<GoogleProvider> {
         return {accessToken: credentials.access_token, ...(replacement ? {refreshToken: replacement} : {})};
       } catch { throw new ConnectionsError("google_refresh_failed", 503, "unknown"); }
     },
+    write:writeGoogle,
     async read(accessToken, operation, input, context) {
       const messageInput = operation === "gmail.get" ? googleMessageReadInput(input) : undefined;
       if (messageInput && (!context || !/^[a-f0-9]{64}$/.test(context.messageScope))) throw new ConnectionsError("google_message_scope_required", 403);
-      const url = readUrl(operation, messageInput ?? input);
-      let response: Response;
-      try { response = await fetch(url, { headers: { authorization: "Bearer " + accessToken }, signal: AbortSignal.timeout(15_000), redirect: "error" }); }
-      catch { throw new ConnectionsError("google_read_unavailable"); }
-      if (!response.ok || !response.body) { await response.body?.cancel(); throw new ConnectionsError("google_read_unavailable"); }
-      const chunks: Uint8Array[] = []; let size = 0;
-      for await (const chunk of response.body) {
-        size += chunk.length;
-        if (size > 2_000_000) { await response.body.cancel().catch(() => {}); throw new ConnectionsError("google_read_too_large"); }
-        chunks.push(chunk);
+      const url = readUrl(operation, messageInput ?? input, context?.operationKey);
+      const fetchJson=(target:URL)=>googleHttp(accessToken,target,'GET',undefined,context?.signal);
+      const value=await fetchJson(url);
+      if(messageInput?.format==='attachment'){
+        if(messageInput.attachmentId)return projectGoogleAttachment(value,messageInput);
+        const message=object(value);if(message.id!==messageInput.messageId)throw new ConnectionsError('google_message_identity_mismatch');
+        const part=googleMessageParts(message.payload).find(p=>(typeof p.value.partId==='string'&&p.value.partId?p.value.partId:'path:'+p.path)===messageInput.partId);
+        if(!part)throw new ConnectionsError('google_attachment_not_found',404);
+        const body=object(part.value.body??{}),attachmentId=typeof body.attachmentId==='string'?body.attachmentId:undefined;
+        const selected={...messageInput,filename:typeof part.value.filename==='string'&&part.value.filename?part.value.filename:'attachment.bin',mimeType:typeof part.value.mimeType==='string'?part.value.mimeType:'application/octet-stream'};
+        return projectGoogleAttachment(attachmentId?await fetchJson(readUrl('gmail.get',{...selected,partId:undefined,attachmentId})):body,selected);
       }
-      let value: unknown;
-      try { value = JSON.parse(Buffer.concat(chunks).toString("utf8")); }
-      catch { throw new ConnectionsError("google_read_invalid"); }
-      return messageInput ? projectGoogleMessage(value, messageInput, context!.messageScope) : value;
+      if(operation==='gmail.drafts.get'){
+        const draft=object(value),message=object(draft.message);if(!context||!message.id)throw new ConnectionsError('google_read_invalid');
+        return {draftId:draft.id,message:projectGoogleMessage(message,googleMessageReadInput({messageId:message.id}),context.messageScope)};
+      }
+      return messageInput?projectGoogleMessage(value,messageInput,context!.messageScope):value;
     },
     async revoke(refreshToken) {
       try { await client().revokeToken(refreshToken); }
@@ -114,31 +120,43 @@ function oauthFailure(error: unknown, stage: OAuthFailureStage): ConnectionsErro
     {stage, reason: temporary ? "transport_unavailable" : "exchange_failed"});
 }
 
-function readUrl(operation: GoogleReadOperation, input: unknown): URL {
+function readUrl(operation: GoogleReadOperation, input: unknown, operationKey?:string): URL {
   const body = object(input);
   let url: URL;
   if (operation === "gmail.search") {
     fields(body, ["query", "limit", "pageToken"]); url = new URL("https://gmail.googleapis.com/gmail/v1/users/me/messages");
     url.searchParams.set("q", string(body.query, 2000));
   } else if (operation === "gmail.get") {
-    googleMessageReadInput(body); const id = string(body.messageId, 128);
-    if (!/^[A-Za-z0-9_-]+$/.test(id) || body.format !== undefined && !["full", "metadata"].includes(String(body.format))) throw new ConnectionsError("invalid_google_read", 400);
+    const {messageId:id} = googleMessageReadInput(body);
     url = new URL("https://gmail.googleapis.com/gmail/v1/users/me/messages/" + encodeURIComponent(id));
-    url.searchParams.set("format", String(body.format ?? "full"));
+    if(body.format==="attachment"&&typeof body.attachmentId==="string")url.pathname+="/attachments/"+encodeURIComponent(body.attachmentId);
+    else url.searchParams.set("format",body.format==="attachment"?"full":String(body.format??"full"));
+  } else if(operation==='gmail.drafts.list'){
+    fields(body,['query','limit','pageToken']);url=new URL('https://gmail.googleapis.com/gmail/v1/users/me/drafts');if(body.query!==undefined)url.searchParams.set('q',string(body.query,2000));
+  } else if(operation==='gmail.drafts.get'){
+    fields(body,['draftId']);url=new URL('https://gmail.googleapis.com/gmail/v1/users/me/drafts/'+providerId(body.draftId));url.searchParams.set('format','full');
+  } else if(operation==='gmail.labels.list'){
+    fields(body,[]);url=new URL('https://gmail.googleapis.com/gmail/v1/users/me/labels');
+  } else if(operation==='calendar.calendars'){
+    fields(body,['limit','pageToken']);url=new URL('https://www.googleapis.com/calendar/v3/users/me/calendarList');
+  } else if(operation==='calendar.find_operation'){
+    fields(body,['operationId','calendarId','from','to']);if(!operationKey||!/^[a-f0-9]{64}$/.test(operationKey))throw new ConnectionsError('invalid_google_read',400);
+    url=new URL('https://www.googleapis.com/calendar/v3/calendars/'+encodeURIComponent(calendarId(body.calendarId))+'/events');url.searchParams.set('privateExtendedProperty','hardyOperation='+operationKey);
+    const from=string(body.from,40),to=string(body.to,40);if(!Number.isFinite(Date.parse(from))||!Number.isFinite(Date.parse(to))||Date.parse(to)<=Date.parse(from))throw new ConnectionsError('invalid_google_read',400);url.searchParams.set('timeMin',from);url.searchParams.set('timeMax',to);
   } else if (operation === "calendar.list") {
-    fields(body, ["from", "to", "query", "limit", "pageToken"]); const from = string(body.from, 40), to = string(body.to, 40);
+    fields(body, ["calendarId", "from", "to", "query", "limit", "pageToken"]); const from = string(body.from, 40), to = string(body.to, 40);
     if (!Number.isFinite(Date.parse(from)) || !Number.isFinite(Date.parse(to)) || Date.parse(to) <= Date.parse(from)) throw new ConnectionsError("invalid_google_read", 400);
-    url = new URL("https://www.googleapis.com/calendar/v3/calendars/primary/events");
+    url = new URL("https://www.googleapis.com/calendar/v3/calendars/"+encodeURIComponent(calendarId(body.calendarId))+"/events");
     url.searchParams.set("timeMin", from); url.searchParams.set("timeMax", to);
     if (body.query !== undefined) url.searchParams.set("q", string(body.query, 1000));
   } else if (operation === "calendar.get") {
-    fields(body, ["eventId"]); const id = string(body.eventId, 1024);
+    fields(body, ["calendarId", "eventId"]); const id = string(body.eventId, 1024);
     if (!/^[A-Za-z0-9_-]+$/.test(id)) throw new ConnectionsError("invalid_google_read", 400);
-    url = new URL("https://www.googleapis.com/calendar/v3/calendars/primary/events/" + encodeURIComponent(id));
+    url = new URL("https://www.googleapis.com/calendar/v3/calendars/"+encodeURIComponent(calendarId(body.calendarId))+"/events/" + encodeURIComponent(id));
   } else throw new ConnectionsError("connection_operation_not_allowed", 403);
-  if (operation.endsWith(".search") || operation.endsWith(".list")) {
+  if (operation.endsWith(".search") || operation.endsWith(".list") || operation === "calendar.calendars") {
     const limit = body.limit ?? 20;
-    if (!Number.isInteger(limit) || Number(limit) < 1 || Number(limit) > 100) throw new ConnectionsError("invalid_google_read", 400);
+    if (!Number.isInteger(limit) || Number(limit) < 1 || Number(limit) > (operation.startsWith("gmail.") ? 500 : operation === "calendar.calendars" ? 250 : 2500)) throw new ConnectionsError("invalid_google_read", 400);
     url.searchParams.set("maxResults", String(limit));
     if (body.pageToken !== undefined) url.searchParams.set("pageToken", string(body.pageToken, 4096));
   }

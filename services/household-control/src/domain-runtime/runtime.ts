@@ -24,6 +24,11 @@ import type {LoadedTaskContract} from "../task-flow/context-loader.ts";
 import type {ExecutionGrant} from "../request-context.ts";
 import type {TaskFlowContext,TaskQuestion,TaskReply,TaskEvidenceRef,VerifiedTaskEvidence} from "../task-flow/types.ts";
 import type {AnalysisFlowContext,NativeAnalysisRequest} from "../analysis-flow/types.ts";
+const isAnalysisAgent = (agent: unknown) => agent === "household-analysis";
+import { workshopAuthorized } from "./workshop-authorization.ts";
+import { emailAttachments } from "./email-attachments.ts";
+import { captureWorkshopDeliverables } from "./workshop-deliveries.ts";
+import { deliverEmailResult } from "./email-delivery.ts";
 import {NativeExecutionPolicies} from "../platform/native-execution.ts";
 import {HouseholdClientQueries} from "./client-queries.ts";
 import type {ClientReadQuery} from "../client-views/contracts.ts";
@@ -107,7 +112,7 @@ export class HouseholdDomainRuntime {
   constructor(options:{database:HouseholdDatabase;adapter:OpenClawAgentAdapter;artifacts:ArtifactStore;configuration:DomainConfiguration;
     nativeSandboxCheck?:(sessionKey:string,agentId:string)=>Promise<void>;connectedGoogle?:ConnectedGooglePort;systemStatus?:SystemStatusReader}){
     this.database=options.database;this.adapter=options.adapter;this.artifacts=options.artifacts;this.config=options.configuration;
-    this.admission=new NativeAdmission(this.database,this.adapter,this.config.execution.nativeEntries,this.artifacts,{schedulingEnabled:this.config.execution.schedulingEnabled,scheduledToolNames:scheduledCapabilities,profileGrants:this.config.profiles,notificationTargets:this.config.execution.notificationTargets,queuedNoticePolicy:this.config.execution.queuedNoticePolicy??"finish_accepted"});
+    this.admission=new NativeAdmission(this.database,this.adapter,this.config.execution.nativeEntries,this.artifacts,{workshopOwnerProfileId:this.config.execution.workshop?.dataRoot?this.config.execution.workshop.ownerProfileId:undefined,schedulingEnabled:this.config.execution.schedulingEnabled,scheduledToolNames:scheduledCapabilities,profileGrants:this.config.profiles,notificationTargets:this.config.execution.notificationTargets,queuedNoticePolicy:this.config.execution.queuedNoticePolicy??"finish_accepted"});
     this.analysisBindings=new AnalysisAdmissionBindings(this.admission.authority);
     this.authorization=new NativeDomainAuthorization(this.database,this.config.profiles,(packet,id)=>this.admission.externalCurrent(packet,id));
     this.effects=new DomainEffectStore(this.database.domainConnection());this.runner=new BoundedProcessRunner();
@@ -139,7 +144,7 @@ export class HouseholdDomainRuntime {
     this.clientQueries=new HouseholdClientQueries({authority:{read:(id)=>{const profile=this.database.getProfile(id),grant=this.config.profiles[id];return profile&&grant?{profile,grant}:null;}},
       contacts:this.contacts,lists:this.lists,memory:this.memory,receipts:{reviewList:(principal,limit)=>this.receipts.reviewList(principal,limit)}});
     this.contextLoader=new SelectedDomainContextLoader(this.config.execution.skillsRoot);
-    const policies=new NativeExecutionPolicies({configPath:this.config.execution.nativeConfigPath,image:this.config.execution.sandboxImage});
+    const policies=new NativeExecutionPolicies({configPath:this.config.execution.nativeConfigPath,image:this.config.execution.sandboxImage,workshop:this.config.execution.workshop});
     const sandboxCheck=options.nativeSandboxCheck;
     this.tasks=new HouseholdTaskApplication({database:this.database,artifacts:this.artifacts,resolveContext:(context)=>this.getTaskContext(context),
       loadCatalog:task=>this.loadTaskCatalog(task),
@@ -147,6 +152,11 @@ export class HouseholdDomainRuntime {
       nativeProgress:async(binding)=>{const scope=this.taskScopes.get(binding.task);if(!scope)throw new DomainError("task_authority_invalid");scope.principal.assertCurrent();
         const card=await this.adapter.getProgress(scope.conversation);scope.principal.assertCurrent();return {card,sourceCreatedAtMs:Date.parse(scope.principal.sourcePromptCreatedAt)};},
       effectsEvidence:(task,refs)=>this.effectEvidence(task,refs),policies,
+      workshopAllowed:binding=>{
+        const scope=this.taskScopes.get(binding.task),profile=scope&&this.database.getProfile(scope.principal.profileId);
+        return binding.execution.agentId === "main" && !!this.config.execution.workshop?.dataRoot && workshopAuthorized(this.config.execution.workshop?.ownerProfileId,profile,scope);
+      },
+      workshopToolPolicy:sandboxCheck?binding=>this.verifyWorkshopToolPolicy(binding,policies,sandboxCheck):undefined,
       analysisToolPolicy:sandboxCheck?binding=>this.verifyAnalysisToolPolicy(binding,policies,sandboxCheck):undefined,
       publicWebAllowed:binding=>{
         const scope=this.taskScopes.get(binding.task);
@@ -158,7 +168,7 @@ export class HouseholdDomainRuntime {
       childRequestMatches:async(context,requestArtifactId,key,runId)=>this.analysisBindings.matches(context,requestArtifactId,key,runId),
       child:(context,identity)=>this.analysisBindings.observe(context,identity,request=>this.adapter.observeAnalysisChild(request)),
       sandboxRoots:this.config.execution.sandboxRoots,domainToolNames:domainCatalog.map(t=>t.nativeName),domainTools:domainCatalog,completeNative:(binding,summary)=>this.completeTask(binding,summary),completionEvidence:binding=>this.completionCandidates(binding),completionCanSettle:binding=>this.completionCanSettle(binding),stop:(binding,input)=>this.stopTask(binding,input),
-      allowGoalCreation:(binding)=>{const scope=this.taskScopes.get(binding.task);return Boolean(scope?.packet?.origin?.kind==="scheduled"&&scope.packet.scheduledTools?.includes("create_goal"));},validateQuestion:(task,question)=>this.validateQuestion(task,question),validateReply:(task,question,reply)=>this.validateReply(task,question,reply)});
+      allowGoalCreation:(binding)=>{const scope=this.taskScopes.get(binding.task);return Boolean(scope&&(scope.packet?.origin?.kind==='scheduled'&&scope.packet.scheduledTools?.includes('create_goal')||binding.execution.agentId==='main'&&workshopAuthorized(this.config.execution.workshop?.ownerProfileId,this.database.getProfile(scope.principal.profileId),scope)));},validateQuestion:(task,question)=>this.validateQuestion(task,question),validateReply:(task,question,reply)=>this.validateReply(task,question,reply)});
     this.nativeApprovals=new NativeApprovalBridge({database:this.database,authority:this.admission.authority,
       snapshot:binding=>this.tasks.snapshot(binding),validateQuestion:async(binding,question)=>{await this.validateQuestion(binding.task,structuredClone(question));},
       routeAuthorized:binding=>{const scope=this.taskScopes.get(binding.task);if(!scope)return false;
@@ -168,7 +178,7 @@ export class HouseholdDomainRuntime {
   }
   catalog(context?:BoundNativeToolContext):CatalogTool[]{
     if(!context)return [...domainCatalog,...this.tasks.catalog().filter(tool=>!["task.verify_outcome","task.finish"].includes(tool.name))];
-    if(["household-analysis","household-diagnostics"].includes(context.agentId??""))return this.tasks.catalog(context);
+    if(["household-analysis","household-workshop","household-diagnostics"].includes(context.agentId??""))return this.tasks.catalog(context);
     const grant=this.authorization.catalogGrant(context),conversation=this.authorization.root(context);
     const statusAllowed=systemStatusAuthorized({profile:conversation&&this.database.getProfile(conversation.ownerProfileId),audience:conversation?.audience,grant:grant??undefined});
     return grant?[...domainCatalog.filter(tool=>(tool.domain==="effects"||grant.domains.includes(tool.domain))&&(tool.name!=="diagnostics.system_status"||statusAllowed)),...this.tasks.catalog(context).filter(tool=>tool.domain==="task"||grant.domains.includes(tool.domain)||tool.name==="analysis.publish_report"&&grant.domains.includes("diagnostics"))]:[];
@@ -204,6 +214,9 @@ export class HouseholdDomainRuntime {
     for(const id of ids){
       scope.principal.assertCurrent();
       if(this.contacts.authorizeSource(scope.principal,id))allowed.push(id);
+      const metadata=await this.artifacts.get(id,{profileId:scope.principal.profileId,canReadHousehold:scope.principal.canReadHousehold});
+      if(metadata.kind==='output'&&metadata.ownerProfileId===scope.principal.profileId&&metadata.conversationId===scope.conversation.id&&
+        metadata.audience===scope.principal.audience&&[scope.principal.taskId,'conversation:'+scope.conversation.id].includes(metadata.taskId))allowed.push(id);
     }
     // Resolve an extraction's implicit original through the document owner, then recheck
     // the current contact/source ACL. Nested model claims never supply artifact grants.
@@ -224,20 +237,10 @@ export class HouseholdDomainRuntime {
     if(!scope||binding.conversationOnly||typeof event.toolName!=="string"||![...domainCatalog,...this.tasks.catalog()].some(tool=>tool.nativeName===event.toolName))throw new DomainError("trusted_native_invocation_required");
     const runId=event.runId??context.runId,toolCallId=event.toolCallId??context.toolCallId;
     if(typeof runId!=="string"||!runId||typeof toolCallId!=="string"||!toolCallId||event.runId&&context.runId&&event.runId!==context.runId||event.toolCallId&&context.toolCallId&&event.toolCallId!==context.toolCallId||
-      !context.agentId||!context.sessionKey||!context.sessionId||!event.params||typeof event.params!=="object"||Array.isArray(event.params)||Buffer.byteLength(JSON.stringify(event.params))>512*1024)throw new DomainError("trusted_native_invocation_required");
+      !context.agentId||!context.sessionKey||!context.sessionId||!event.params||typeof event.params!=="object"||Array.isArray(event.params))throw new DomainError("trusted_native_invocation_required");
     scope.principal.assertCurrent();
     const key=context.sessionKey.startsWith(`agent:${context.agentId}:hardy-home:`)?context.sessionKey.slice(`agent:${context.agentId}:`.length):context.sessionKey;
-    const before=this.admission.authority.get(key),initialChild=before?.parentSessionKey&&before.sessionId===null?before:null;
-    const loaded=initialChild?this.admission.authority.contracts.list(initialChild,scope.principal.assertCurrent):[];
     this.admission.authority.bindChildSessionId(key,context.agentId,context.sessionId,runId,scope.principal.assertCurrent);
-    if(initialChild&&loaded.length){
-      const after=this.admission.authority.get(key);
-      if(!after||after.sessionId!==context.sessionId||["sessionKey","rootSessionKey","sourceId","parentSessionKey","agentId","goalId","runId","mode"].some(name=>after[name as keyof ExecutionGrant]!==initialChild[name as keyof ExecutionGrant]))
-        throw new DomainError("loaded_contract_required",{httpStatus:403});
-      // A trusted first child SID completes the same generation. The repository
-      // still clears projections; rehydrate only actually delivered, current contracts.
-      await this.recordLoadedContracts(binding,loaded);
-    }
     this.admission.authority.invocations.bind({agentId:context.agentId,sessionKey:context.sessionKey,sessionId:context.sessionId,toolCallId,toolName:event.toolName,argumentHash:fingerprint(event.params)},runId,scope.principal.assertCurrent);
   }
   async executeNativeInvocation(nativeName:string,args:unknown,context:BoundNativeToolContext,signal?:AbortSignal):Promise<unknown>{
@@ -367,8 +370,9 @@ export class HouseholdDomainRuntime {
         targetSubmissionId:typeof args.targetSubmissionId==="string"?args.targetSubmissionId:undefined,targetRunId:typeof args.targetRunId==="string"?args.targetRunId:undefined,
         assertCurrent:principal.assertCurrent,versions:{household:HOUSEHOLD_VERSION,openclaw:"2026.9.8"}});
     }
+    const ownerAutonomy=context.agentId==='main'&&workshopAuthorized(this.config.execution.workshop?.ownerProfileId,this.database.getProfile(principal.profileId),scope);
     const native:NativeDomainContext={profileId:principal.profileId,agentId:principal.agentId,sessionKey:principal.sessionKey,conversationId:principal.conversationId,
-      credentialAuthority:scope.credentialAuthority,
+      credentialAuthority:scope.credentialAuthority,ownerAutonomy,
       audience:principal.audience,allowedScopes:scope.grant.scopes,authorizedAttendees:[...scope.grant.allowedAttendees],signal:principal.signal,assertCurrent:principal.assertCurrent};
     const notification=this.config.execution.notificationTargets?.[principal.profileId];
     if(notification)native.notificationTarget=notification;
@@ -378,7 +382,7 @@ export class HouseholdDomainRuntime {
     }else if(notification)native.deliveryTarget=notification;
     const taskBinding=await this.getTaskContext(context),snapshot=await this.tasks.snapshot(taskBinding);
     const approval=snapshot.replyQuestion?.approval;
-    native.destructiveApproved=snapshot.currentReply?.decision==="approve" && snapshot.currentReply.sourcePromptId===taskBinding.task.source.id &&
+    native.destructiveApproved=ownerAutonomy || snapshot.currentReply?.decision==="approve" && snapshot.currentReply.sourcePromptId===taskBinding.task.source.id &&
       approval?.toolName===tool.nativeName&&approval?.operationId===args.operationId&&approval?.resourceId===(args.eventId??args.jobId??args.id??args.sourceId??args.contactId);
     if(tool.domain==="calendar" && (Array.isArray(args.attendees)||args.notifyAttendees===true)){
       const source=await userInput();
@@ -390,7 +394,15 @@ export class HouseholdDomainRuntime {
     }
     switch(tool.domain){
       case "lists":return this.lists.execute(tool.name,args,native);
-      case "calendar":case "email":return this.google.execute(tool.name,args,native);
+      case "calendar":return this.google.execute(tool.name,args,native);
+      case "email":{
+        const workshop=context.agentId==='main'&&workshopAuthorized(this.config.execution.workshop?.ownerProfileId,this.database.getProfile(scope.principal.profileId),scope)?this.config.execution.workshop:undefined;
+        const prepared=await emailAttachments({args,artifacts:this.artifacts,scope:{ownerProfileId:principal.profileId,conversationId:principal.conversationId,taskId:principal.taskId,audience:principal.audience},principal,workshop,allowedArtifactIds,assertCurrent:principal.assertCurrent});
+        const value=await this.google.execute(tool.name,prepared,native);
+        return deliverEmailResult({value,input:args,artifacts:this.artifacts,
+          scope:{ownerProfileId:scope.principal.profileId,conversationId:scope.conversation.id,taskId:'conversation:'+scope.conversation.id,audience:scope.principal.audience},
+          principal:{profileId:scope.principal.profileId,canReadHousehold:scope.principal.canReadHousehold},workshop,assertCurrent:scope.principal.assertCurrent});
+      }
       case "memory":return this.memory.execute(tool.name,args,native);
       case "schedule":return this.schedule.execute(tool.name,args,native);
       default:throw new DomainError("domain_tool_unavailable",{httpStatus:404});
@@ -554,15 +566,12 @@ export class HouseholdDomainRuntime {
   }
   private async assertBusinessReady(binding:any,tool:CatalogTool){
     if(tool.domain==="task"||tool.domain==="effects"||tool.name==="analysis.publish_output")return;
-    const identity=this.contractIdentity(binding),catalog=await this.loadTaskCatalog(binding.task),domain=catalog.find(value=>value.id===tool.domain&&value.tools.includes(tool.nativeName));
-    if(!domain)throw new DomainError("domain_not_authorized",{httpStatus:403});
-    this.admission.authority.contracts.assertLoaded(identity,{domainId:domain.id,contractDigest:taskContractDigest(domain.instructions)},binding.task.assertCurrent);
-    if(tool.effect==="write"){
-      const decision=await this.tasks.businessEffectGuard(binding);
-      if(!decision.allow)throw Object.assign(new DomainError(decision.code??"native_progress_plan_required",{httpStatus:403}),{nativeProgressReason:decision.reason});
-    }
+    // Execution identity and current scope authorize the call. Guide text and
+    // optional coordination metadata cannot grant or veto that authority.
+    this.contractIdentity(binding);
     binding.task.assertCurrent();
   }
+
   private async userInput(scope:AuthorizedScope){
     const projected=await this.admission.source(scope.principal.sourcePromptId,scope.sourceHash);
     return projected?Promise.resolve(projected):this.authorization.userInput(scope,conversation=>this.adapter.listMessages(conversation));
@@ -621,16 +630,39 @@ export class HouseholdDomainRuntime {
       source:{...source,human:!scope.packet?.sourceReferenceId&&scope.packet?.origin?.kind!=="scheduled"&&(scope.packet?.origin?.kind!=="discord"||scope.packet.origin.confirmedHuman===true)},mode:scope.mode,previousOutcomes,artifactIds:[...new Set([...(scope.packet?.artifactIds??[]),...(independentSource?.artifactIds??[]),...originalInputs,...(!independentTopic&&!scope.packet?.sourceReferenceId&&scope.packet?.origin?.kind!=="scheduled"?previousOutcomes.artifactIds:[])])],assertCurrent:scope.principal.assertCurrent,
       ...(scope.conversation.ownerProfileId!==scope.principal.profileId?{contribution:{actorProfileId:scope.principal.profileId,canWrite:true as const}}:{})};
     if(grant?.parentSessionKey&&grant.mode==="diagnostic"&&task.mode!=="diagnostic")throw new DomainError("diagnostic_lineage_mismatch");
+    if(grant?.parentSessionKey&&context.agentId==="main"&&workshopAuthorized(this.config.execution.workshop?.ownerProfileId,this.database.getProfile(scope.principal.profileId),scope))
+      this.admission.authority.bindChildSessionId(normalizedSessionKey(context.agentId,context.sessionKey),context.agentId,context.sessionId,context.runId,scope.principal.assertCurrent);
     this.taskScopes.set(task,scope);
     return {task,execution:{agentId:context.agentId,sessionKey:context.sessionKey,sessionId:context.sessionId,runId:context.runId,
       workspaceDir:context.workspaceDir,sandboxed:context.sandboxed===true,toolCallId:(context as any).toolCallId}};
   }
   async taskPrompt(binding:any){if(binding.conversationOnly)return {toolsAllow:[],prependSystemContext:"You are the family conversation assistant for this authenticated person. This profile is conversation-only. Answer directly and ask follow-up questions naturally; do not claim to read private stores, execute tools, make changes or promise later actions."};return this.tasks.prompt(binding);}
-  async taskFinalize(binding:any){return binding.conversationOnly?undefined:this.tasks.finalize(binding);}
+  async taskFinalize(binding:any,event?:Json){
+    if(binding.conversationOnly)return undefined;
+    const scope=this.taskScopes.get(binding.task),configuration=this.config.execution.workshop;
+    if(configuration&&binding.execution.agentId==="main"&&workshopAuthorized(configuration.ownerProfileId,scope&&this.database.getProfile(scope.principal.profileId),scope)){
+      await captureWorkshopDeliverables({configuration,artifacts:this.artifacts,scope:binding.task.scope,principal:binding.task.principal,
+        sourceId:binding.task.source.id,message:event?.lastAssistantMessage,assertCurrent:binding.task.assertCurrent});
+    }
+    return this.tasks.finalize(binding);
+  }
+  private async verifyWorkshopToolPolicy(binding:TaskApplicationBinding,policies:NativeExecutionPolicies,
+    checkSandbox:(sessionKey:string,agentId:string)=>Promise<void>):Promise<boolean>{
+    const scope=this.taskScopes.get(binding.task),{agentId,sessionKey,sessionId,runId}=binding.execution;
+    const profile=scope&&this.database.getProfile(scope.principal.profileId);
+    if(agentId!=="main"||!this.config.execution.workshop?.dataRoot||!workshopAuthorized(this.config.execution.workshop.ownerProfileId,profile,scope))return false;
+    const authority=this.admission.authority,key=normalizedSessionKey(agentId,sessionKey),grant=authority.get(key);
+    if(!grant||grant.rootSessionKey!==scope!.conversation.sessionKey||grant.sourceId!==scope!.principal.sourcePromptId||grant.agentId!==agentId||
+      grant.runId!==runId||grant.sessionId!==null&&grant.sessionId!==sessionId)return false;
+    const before=fingerprint(grant);
+    try{await policies.assertReady(agentId);policies.assertProfile(agentId,this.nativePolicyReader?.());await checkSandbox(sessionKey,agentId);}catch{return false;}
+    scope!.principal.assertCurrent();
+    return before===fingerprint(authority.get(key));
+  }
   private async verifyAnalysisToolPolicy(binding:TaskApplicationBinding,policies:NativeExecutionPolicies,
     checkSandbox:(sessionKey:string,agentId:string)=>Promise<void>):Promise<boolean>{
     const scope=this.taskScopes.get(binding.task),{agentId,sessionKey,sessionId,runId}=binding.execution;
-    if(!scope||agentId!=="household-analysis"||scope.mode==="diagnostic"||!scope.grant.domains.includes("analysis")||
+    if(!scope||!isAnalysisAgent(agentId)||scope.mode==="diagnostic"||!scope.grant.domains.includes("analysis")||
       scope.principal.audience==="household"&&!scope.grant.sharedDomains.includes("analysis"))return false;
     const authority=this.admission.authority,key=normalizedSessionKey(agentId,sessionKey),grant=authority.get(key);
     const parent=grant?.parentSessionKey?authority.get(grant.parentSessionKey):null;
@@ -658,18 +690,11 @@ export class HouseholdDomainRuntime {
   async taskGuard(binding:any,event:Json,context:Json){
     const scope=this.taskScopes.get(binding.task);if(scope)this.assertScheduledTool(scope,String(event.toolName));
     if(binding.conversationOnly)return {allow:false,reason:"This profile is conversation-only."};
-    if(event.toolName==="sessions_spawn"&&(!binding.task.native.goalId||binding.task.native.goalStatus!=="active"))return {allow:false,reason:"Generic phase children require an already-bound formal goal. For this ordinary source use household_analysis_start and household_analysis_result; inspect a rejected helper or uncertain effect rather than replacing it with raw sessions_spawn or create_goal."};
+    if(event.toolName==="sessions_spawn"&&!workshopAuthorized(this.config.execution.workshop?.dataRoot?this.config.execution.workshop.ownerProfileId:undefined,scope&&this.database.getProfile(scope.principal.profileId),scope)&&(!binding.task.native.goalId||binding.task.native.goalStatus!=="active"))return {allow:false,reason:"Generic phase children require an already-bound formal goal. For this ordinary source use household_analysis_start and household_analysis_result; inspect a rejected helper or uncertain effect rather than replacing it with raw sessions_spawn or create_goal."};
     const decision=await this.tasks.guard(binding,event as any,context);
     if(decision.allow){
       const tool=[...domainCatalog,...this.tasks.catalog()].find(value=>value.nativeName===event.toolName);
       if(tool)try{await this.assertBusinessReady(binding,tool);}catch(error){
-        if(domainErrorCode(error)==="loaded_contract_required"){
-          const catalog=await this.loadTaskCatalog(binding.task),domain=catalog.find(value=>value.id===tool.domain&&value.tools.includes(tool.nativeName));
-          if(!domain)return {allow:false,reason:"This skill is unavailable under the current source and audience grants."};
-          await this.recordLoadedContracts(binding,[{domainId:domain.id,contractDigest:taskContractDigest(domain.instructions)}]);
-          return {allow:false,reason:`The ${domain.id} skill has loaded automatically. Read its trusted instructions below, then retry the same typed tool call if appropriate. This first call performed no business effect. No manual domain selection is required.\n\n${domain.instructions}`};
-        }
-        if(["native_progress_plan_required","task_reply_binding_required"].includes(domainErrorCode(error)))return {allow:false,reason:typeof (error as any).nativeProgressReason==="string"?(error as any).nativeProgressReason:"Publish the current native progress_card plan before business effects."};
         if(domainErrorCode(error)==="domain_not_authorized")return {allow:false,reason:"This business capability is unavailable under the current source and audience grants."};
         throw error;
       }
@@ -861,7 +886,7 @@ export class HouseholdDomainRuntime {
       const resourceIds=[...new Set(listIds as string[])].slice(0,100);
       const resourceId=resource.contactId??resource.receiptId??receipt.receiptId??candidate.receiptId??source.id??event.id??receipt.eventId??job.id??receipt.jobId??publication.id??receipt.extractionArtifactId??receipt.lookup??(resourceIds.length===1?resourceIds[0]:undefined);
       const labels=domain==="lists"?[...(Array.isArray(rawList.saved)?rawList.saved:[]),...(Array.isArray(rawList.existing)?rawList.existing:[])].map(value=>object(value).text).filter((value):value is string=>typeof value==="string").slice(0,3).map(value=>value.slice(0,240)):[];
-      const summary=tool+" "+effectState+(labels.length?" · "+labels.map(value=>JSON.stringify(value)).join("; "):" by its owning domain");
+      const summary=tool+" "+effectState+(labels.length?" Ã‚Â· "+labels.map(value=>JSON.stringify(value)).join("; "):" by its owning domain");
       result.push({...ref,verified:true,digest:fingerprint({tool,receipt,requestHash:row.request_hash}),summary,provenance:"current_authorized_domain_receipt",effect:{toolName:tool,state:effectState,...(typeof resourceId==="string"?{resourceId}:{}),...(resourceIds.length?{resourceIds}:{})}});
     }
     scope.principal.assertCurrent();return result;

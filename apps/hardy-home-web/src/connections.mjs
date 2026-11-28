@@ -5,7 +5,7 @@ function defaultGoogleRedirect() {
   const local = host === 'localhost' || host.endsWith('.localhost') || host.includes(':') || /^\d{1,3}(?:\.\d{1,3}){3}$/.test(host) || !host.includes('.');
   return local ? 'http://localhost:8787/oauth2/callback' : location.origin + '/v1/connections/google/callback';
 }
-const connectionPath = /^\/v1\/connections(?:\/(?:bitwarden|password|google\/(?:config|start|complete)|connection-[a-f0-9-]+))?$/;
+const connectionPath = /^\/v1\/connections(?:\/(?:bitwarden|password|google\/(?:config|start|complete|read-only)|connection-[a-f0-9-]+))?$/;
 const sign = createDeviceSigner(path => connectionPath.test(path), 'connection_path');
 const failures = {
   bitwarden_not_configured: 'Connect Bitwarden before adding an account.',
@@ -18,6 +18,8 @@ const failures = {
   invalid_google_client: 'Enter the complete client ID and matching client secret from the same Google OAuth Web application client.',
   invalid_google_redirect: 'Use this app’s loopback return URL or an allowed HTTPS DNS return URL.',
   google_client_not_configured: 'Complete Google setup before connecting an account.',
+  google_connection_changed: 'This connection changed during authorization. Refresh and start its access change again.',
+  google_connection_ambiguous: 'Choose the existing connection whose access you want to change.',
   google_account_mismatch: 'Google authorized a different account. Start again with the intended account.',
   google_scope_not_granted: 'Google did not grant the requested access. Start authorization again.',
   google_scope_exceeds_request: 'Google returned permissions beyond this request. Start authorization again.',
@@ -56,9 +58,10 @@ const restartGoogleFailures = new Set([
   'google_account_mismatch',
 ]);
 const presets = [
-  ['gmail_read', 'Read Gmail'],
-  ['calendar_read', 'Read a personal calendar'],
-  ['household_calendar_manage', 'Manage the house calendar'],
+  ['gmail_read', 'Gmail — read only'],
+  ['gmail_manage', 'Gmail — read and write'],
+  ['calendar_read', 'Calendar — read only'],
+  ['calendar_manage', 'Calendar — read and write'],
 ];
 
 // These requests intentionally never enter chat delivery, IndexedDB, or browser storage.
@@ -199,7 +202,19 @@ export function createConnections({ element }) {
           return 'Account disconnected.';
         });
       });
-      card.append(info, remove);
+      card.append(info);
+      if(row.kind==='google'){
+        const service=row.service??(row.preset?.startsWith('gmail_')?'gmail':'calendar');
+        info.append(element('p',(service==='gmail'?'Gmail':'Calendar')+' · '+(row.access==='write'?'Read and write':'Read only'),'hint'));
+        if(row.account&&row.status==='connected'){
+          const access=element('button',row.access==='write'?'Use read only':'Enable write access');access.type='button';access.disabled=pending||!ready();
+          access.addEventListener('click',()=>void perform(async()=>{
+            if(row.access==='write'){await call('POST','/google/read-only',{connectionId:row.id,operationId:operation()});return 'HardyAI now has read-only access to this connection.';}
+            return beginGoogle(row.label,row.account,service==='gmail'?'gmail_manage':'calendar_manage',row.id);
+          }));card.append(access);
+        }
+      }
+      card.append(remove);
       list.append(card);
     }
     if (!snapshot?.connections?.length) list.append(element('p', 'No account connections yet.', 'hint'));
@@ -314,7 +329,10 @@ export function createConnections({ element }) {
   for (const [value, text] of presets) preset.append(new Option(text, value));
   googleForm.append(scopeLabel, preset, element('p', 'Google shows the requested permissions before you approve access.', 'hint'));
   const googleStart = submit(googleForm, 'Start Google authorization', async () => {
-    const result = await call('POST', '/google/start', { operationId: operation(), label: googleLabel.value.trim(), expectedEmail: email.value.trim(), preset: preset.value });
+    return beginGoogle(googleLabel.value.trim(),email.value.trim(),preset.value);
+  });
+  async function beginGoogle(label,expectedEmail,requestedPreset,connectionId){
+    const result = await call('POST', '/google/start', { operationId: operation(), label, expectedEmail, preset:requestedPreset,...(connectionId?{connectionId}:{}) });
     const target = new URL(result.authorizationUrl);
     if (target.protocol !== 'https:' || target.hostname !== 'accounts.google.com' || target.username || target.password || !result.flowId) throw new Error('authorization_url');
     flow = result.flowId;
@@ -324,7 +342,7 @@ export function createConnections({ element }) {
     return (snapshot?.google?.redirectUri || redirect.value || defaultGoogleRedirect()).startsWith('http:')
       ? 'Open Google to approve access. Then paste the complete return URL below and choose Finish Google connection.'
       : 'Open Google to approve access. Return here and refresh to check the connection.';
-  });
+  }
   const authorization = element('a', 'Open Google authorization', 'connection-authorize');
   authorization.target = '_blank';
   authorization.rel = 'noopener noreferrer';

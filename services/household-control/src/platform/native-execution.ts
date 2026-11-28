@@ -1,3 +1,5 @@
+import { assertWorkshopProfile } from "./workshop-profile.ts";
+import type { WorkshopConfiguration } from "./workshop-profile.ts";
 import { lstat, readFile } from "node:fs/promises";
 import path from "node:path";
 import { createHash } from "node:crypto";
@@ -73,10 +75,13 @@ export class NativeExecutionPolicies {
   private readonly configPath: string;
   private readonly expectedImage: string;
 
-  constructor(options: { configPath: string; image: string }) {
+  private readonly workshop?: WorkshopConfiguration;
+
+  constructor(options: { configPath: string; image: string; workshop?: WorkshopConfiguration }) {
     if (!path.isAbsolute(options.configPath) || !options.image) throw new PlatformError("native_profile_options_invalid", 500);
     this.configPath = options.configPath;
     this.expectedImage = options.image;
+    this.workshop = options.workshop;
   }
 
   async assertReady(agentId: string): Promise<void> {
@@ -92,6 +97,7 @@ export class NativeExecutionPolicies {
 
   /** The live native config and the protected on-disk profile share the same requirements. */
   assertProfile(agentId: string, configuration: unknown): void {
+    if (agentId === "main" && this.workshop) { assertWorkshopProfile(this.workshop, agentId, configuration); return; }
     if (!new Set<string>(Object.values(nativeHelperAgents)).has(agentId)) invalid();
     const config = record(configuration);
     const agents = record(config.agents);
@@ -136,10 +142,10 @@ export class NativeExecutionPolicies {
 
   async readiness() {
     const result: Record<string, { status: string; detail: string }> = {};
-    for (const agentId of Object.values(nativeHelperAgents)) {
+    for (const agentId of [...Object.values(nativeHelperAgents), ...(this.workshop ? ["main"] : [])]) {
       try {
         await this.assertReady(agentId);
-        result[agentId] = { status: "configured", detail: "Restricted native profile validated; no agent task has been executed by this check." };
+        result[agentId] = { status: "configured", detail: agentId === "main" ? "Persistent native workshop configured; this configuration check does not execute a task." : "Restricted native profile validated; no agent task has been executed by this check." };
       } catch (error) {
         result[agentId] = { status: "unavailable", detail: platformErrorCode(error) };
       }

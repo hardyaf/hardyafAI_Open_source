@@ -30,6 +30,7 @@ export function createConnectionsRoutes(options: {
         "/v1/connections/google/config": options.service.configureGoogle.bind(options.service),
         "/v1/connections/google/start": options.service.startGoogle.bind(options.service),
         "/v1/connections/google/complete": options.service.completeGoogle.bind(options.service),
+        "/v1/connections/google/read-only": options.service.setGoogleReadOnly.bind(options.service),
       };
       let result: unknown;
       if (request.method === "POST" && handlers[url.pathname]) result = await handlers[url.pathname](owner, parseJson(bytes), () => options.assertCurrent(context));

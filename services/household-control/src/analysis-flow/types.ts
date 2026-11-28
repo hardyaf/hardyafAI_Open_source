@@ -19,7 +19,7 @@ export type NativeAnalysisChild = { childSessionKey: string; runId: string; agen
   parentSessionKey: string; rootTaskId: string; sandboxed: true;
   state: "running" | "paused" | "complete" | "failed" | "cancelled" };
 export type AnalysisChildIdentity = {
-  childSessionKey: string; runId: string; parentSessionKey: string; parentAgentId: string; expectedSessionId?: string;
+  childSessionKey: string; runId: string; parentSessionKey: string; parentAgentId: string; expectedSessionId?: string; expectedAgentId?: string;
 };
 export type NativeAnalysisObservation = Omit<AnalysisChildIdentity, "parentAgentId" | "expectedSessionId"> & {
   expectedSessionId: string | null; rootTaskId: string; assertCurrent: () => void;

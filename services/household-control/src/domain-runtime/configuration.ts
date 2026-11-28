@@ -11,7 +11,7 @@ export type DomainConfiguration = {
   capture: { python:string; script:string; workspaces:Record<string,string> };
   google: { gogBinary:string; account:string; client:string; calendarId:string; timezone:string };
   memory: { workspaces:Record<string,string>; sharedAgentId:string; wikiVaults:Record<string,string> };
-  execution: { skillsRoot:string; nativeConfigPath:string; openclawBinary:string; sandboxImage:string; sandboxRoots:string[]; nativeEntries:import("./native-admission.ts").NativeEntryRule[]; notificationTargets?:Record<string,import("../domains/native-contracts.ts").NativeDeliveryTarget>; queuedNoticePolicy?:"finish_accepted"|"recheck_each_attempt"; schedulingEnabled:boolean };
+  execution: { skillsRoot:string; nativeConfigPath:string; openclawBinary:string; sandboxImage:string; sandboxRoots:string[]; workshop?: {ownerProfileId:string; image:string; sandboxRoot:string; dataRoot:string}; nativeEntries:import("./native-admission.ts").NativeEntryRule[]; notificationTargets?:Record<string,import("../domains/native-contracts.ts").NativeDeliveryTarget>; queuedNoticePolicy?:"finish_accepted"|"recheck_each_attempt"; schedulingEnabled:boolean };
   documents: { python:string; script:string; cacheRoot:string };
   uplift: { python:string; moduleRoot:string; database:string; vaultRoot:string };
 };
@@ -73,7 +73,12 @@ function parseExecution(value:unknown):DomainConfiguration["execution"]{
   }
   const queuedNoticePolicy=data.queuedNoticePolicy??"finish_accepted";
   if(!["finish_accepted","recheck_each_attempt"].includes(String(queuedNoticePolicy)))throw new DomainError("domain_delivery_policy_invalid");
-  return {notificationTargets,queuedNoticePolicy:queuedNoticePolicy as "finish_accepted"|"recheck_each_attempt",skillsRoot:absolute(data.skillsRoot),nativeConfigPath:absolute(data.nativeConfigPath),openclawBinary:absolute(data.openclawBinary),sandboxImage:text(data.sandboxImage),sandboxRoots:strings(data.sandboxRoots).map(absolute),nativeEntries,schedulingEnabled:data.schedulingEnabled===true};
+  let workshop: DomainConfiguration["execution"]["workshop"];
+  if (data.workshop !== undefined) { const value = record(data.workshop);
+    if (Object.keys(value).some(key => !["ownerProfileId", "image", "sandboxRoot", "dataRoot"].includes(key)) || !/^[a-z][a-z0-9-]{0,63}$/.test(String(value.ownerProfileId))) throw new DomainError("workshop_configuration_invalid");
+    workshop = { ownerProfileId: text(value.ownerProfileId), image: text(value.image), sandboxRoot: absolute(value.sandboxRoot), dataRoot:absolute(value.dataRoot) };
+  }
+  return {...(workshop ? {workshop} : {}),notificationTargets,queuedNoticePolicy:queuedNoticePolicy as "finish_accepted"|"recheck_each_attempt",skillsRoot:absolute(data.skillsRoot),nativeConfigPath:absolute(data.nativeConfigPath),openclawBinary:absolute(data.openclawBinary),sandboxImage:text(data.sandboxImage),sandboxRoots:strings(data.sandboxRoots).map(absolute),nativeEntries,schedulingEnabled:data.schedulingEnabled===true};
 }
 export async function loadDomainConfiguration(filename:string):Promise<DomainConfiguration>{
   let data:Record<string,unknown>;

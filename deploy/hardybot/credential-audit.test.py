@@ -32,6 +32,23 @@ def config():
                                "binds": [], "capDrop": ["ALL"]}}}}}}
 
 class IsolationPolicyTests(unittest.TestCase):
+    def test_direct_owner_workshop_is_online_and_unlimited_with_lab_only_mounts(self):
+        workshop = {"ownerProfileId": "alex", "dataRoot": "/data/lab", "sandboxRoot": "/data/lab/sandboxes", "image": "sha256:fixture"}
+        value = config()
+        main = value["agents"]["entries"]["main"]
+        main["tools"].update(allow=["read", "write", "exec", "browser", "sessions_spawn"], deny=[], fs={"workspaceOnly": False}, exec={"host": "sandbox", "mode": "full"})
+        main["sandbox"] = {"mode": "all", "backend": "docker", "scope": "agent", "workspaceAccess": "none", "workspaceRoot": workshop["sandboxRoot"],
+            "docker": {"image": workshop["image"], "network": "bridge", "readOnlyRoot": False, "user": "0:0", "gpus": "driver=cdi,device=nvidia.com/gpu=all",
+                "env": {"HOME": "/workspace", "PYTHONUNBUFFERED": "1", "HARDY_WORKSHOP": "1"},
+                "binds": ["/data/lab/system/"+name+":/"+name+":rw" for name in ["usr", "etc", "var", "opt", "tmp", "root"]]+["/data/lab/reference:/reference:ro"]},
+            "browser": {"allowHostControl": False, "binds": []}}
+        self.assertTrue(all(audit.policy_checks(value, workshop).values()))
+        for mutate in [lambda c:c["agents"]["entries"]["main"]["sandbox"]["docker"]["binds"].append("/:/host"),
+                       lambda c:c["agents"]["entries"]["main"]["tools"]["exec"].update(host="gateway"),
+                       lambda c:c["agents"].update(defaults={"sandbox":{"docker":{"cpus":4}}})]:
+            changed = copy.deepcopy(value); mutate(changed)
+            self.assertFalse(all(audit.policy_checks(changed, workshop).values()))
+
     def ready(self, value):
         checks = audit.policy_checks(value)
         return bool(checks) and all(checks.values())
@@ -162,6 +179,23 @@ class NativePatchIntegrityTests(unittest.TestCase):
         self.guard.stop()
         with patch.object(audit, "protected", return_value=False):
             self.assertFalse(self.ready())
+
+class AutonomyOverlayTests(unittest.TestCase):
+    def test_explicit_overlay_chain_and_provider_tampering(self):
+        import hashlib
+        with tempfile.TemporaryDirectory() as directory:
+            root=pathlib.Path(directory);native=root/"runtime";manifest=root/"source/deploy/hardybot/patches/autonomy-runtime.json";manifest.parent.mkdir(parents=True)
+            rows=[]
+            for i in range(10):
+                package="openclaw" if i<8 else "searxng";relative="dist/probe-"+str(i)+".mjs";target=(native if i<8 else root/"plugin-load/1")/relative;target.parent.mkdir(parents=True,exist_ok=True);target.write_bytes(b"verified fixture")
+                rows.append({"package":package,"path":relative,"beforeSha256":"a"*64,"afterSha256":hashlib.sha256(target.read_bytes()).hexdigest()})
+            manifest.write_text(json.dumps({"nativeVersion":"2026.9.8","files":rows}))
+            with patch.object(audit,"ROOT",root),patch.object(audit,"NATIVE_PACKAGE",native),patch.object(audit,"protected",return_value=True):
+                self.assertTrue(all(audit.autonomy_patch_checks().values()))
+                self.assertEqual(audit.overlay_expected(rows[0]["path"],"a"*64),rows[0]["afterSha256"])
+                with self.assertRaisesRegex(ValueError,"autonomy_base_pin_mismatch"):audit.overlay_expected(rows[0]["path"],"b"*64)
+                (root/"plugin-load/1"/rows[-1]["path"]).write_bytes(b"unexpected provider code")
+                self.assertFalse(all(audit.autonomy_patch_checks().values()))
 
 if __name__ == "__main__":
     unittest.main()

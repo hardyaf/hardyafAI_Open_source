@@ -1,7 +1,7 @@
 .connections-dialog { width: min(640px, calc(100vw - 32px)); max-height: 90dvh; overflow: auto; }
 .connections-dialog h2 { margin-top: 0; }
 .connections-list { display: grid; gap: 10px; margin: 18px 0; }
-.connection-row { display: flex; align-items: center; justify-content: space-between; gap: 16px; padding: 12px; border: 1px solid var(--line, #dce1ea); border-radius: 12px; }
+.connection-row { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 16px; padding: 12px; border: 1px solid var(--line, #dce1ea); border-radius: 12px; }
 .connection-row p { margin-bottom: 0; }
 .connections-dialog fieldset { min-width: 0; border: 1px solid var(--line, #dce1ea); padding: 12px; border-radius: 12px; }
 .connection-section { margin: 8px 0 14px; }

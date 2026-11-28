@@ -76,7 +76,7 @@ test("phase child keeps original authority and selected skill without inheriting
   assert.equal(data.parentTask.native.objective, undefined);
   assert.equal(data.handoff, undefined);
   assert.deepEqual(data.coordinationTools.map((tool: any) => tool.nativeName).sort(), ["household_task_context", "household_task_select_domains"]);
-  assert.match(childPrompt.prependSystemContext, /phase.child|phase assignment|assigned phase/i);
+  assert.match(childPrompt.prependSystemContext, /assignment supplied by your current parent/i);
   assert.match(childPrompt.prependSystemContext, /parent.*(?:goal|completion)/i);
   assert.ok(childPrompt.prependSystemContext.includes(selectedInstructions));
   for (const forbidden of [rootObjective, parentNextAction, "ROOT-SUMMARY:", "ROOT-OUTCOME:"])
@@ -100,8 +100,8 @@ test("the original parent still restores its complete objective, handoff and con
   for (const required of [rootObjective, parentNextAction, "ROOT-SUMMARY:", "ROOT-OUTCOME:"])
     assert.ok(prompt.appendContext.includes(required), `Root projection lost ${required}`);
   assert.ok(prompt.prependSystemContext.includes(selectedInstructions));
-  assert.match(prompt.prependSystemContext, /For multi-phase work, checkpoint the original goal/);
-  assert.match(prompt.prependSystemContext, /In ordinary conversation, automatically remember/);
+  assert.match(prompt.prependSystemContext, /optional coordination/);
+  assert.match(prompt.prependSystemContext, /Curation is optional/);
   assert.ok(!prompt.toolsAllow?.includes("household_task_finish"));
   assert.ok(!prompt.toolsAllow?.includes("household_task_verify_outcome"));
   assert.ok(prompt.toolsAllow?.includes("household_task_complete"));
@@ -111,7 +111,7 @@ test("the original parent still restores its complete objective, handoff and con
   assert.ok(prompt.toolsAllow?.includes("sessions_yield"), "Native direct-only yield remains visible");
   assert.match(prompt.prependSystemContext, /sessions_yield is direct.only/);
   assert.match(prompt.prependSystemContext, /visible sessions_yield function directly, never tool_call or tool_search/);
-  assert.match(prompt.prependSystemContext, /completionTarget parent/);
+  assert.match(prompt.prependSystemContext, /original parent controls/);
   assert.doesNotMatch(prompt.prependSystemContext, /before business writes|exactly the supplied bounded step labels/);
   const data = JSON.parse(prompt.appendContext.slice(prompt.appendContext.indexOf("\n") + 1));
   assert.deepEqual(data.coordinationTools.map((tool: any) => tool.nativeName).sort(), ["household_task_ask_question", "household_task_bind_reply", "household_task_complete", "household_task_context", "household_task_select_domains"]);
@@ -159,8 +159,8 @@ test("diagnosis remains sticky in the phase projection without becoming root orc
 test("ordinary source-bound actions need no goal ceremony or root progress instruction", async () => {
   const f = fixture(); f.root.task.native.goalId = null; f.root.task.native.goalStatus = null;
   const prompt = await f.app.prompt(f.root);
-  assert.match(prompt.prependSystemContext, /Routine authorized reads\/writes need no explicit goal, plan or completion ceremony/);
-  assert.match(prompt.prependSystemContext, /do not create a goal solely for curation/i);
+  assert.match(prompt.prependSystemContext, /No guide-loading step, formal goal, plan, question helper, outcome declaration or completion ceremony/);
+  assert.match(prompt.prependSystemContext, /Curation is optional/i);
   assert.doesNotMatch(prompt.prependSystemContext, /When unfinished work needs native next-turn continuation/);
   assert.equal(f.writes(), 0);
   const data = JSON.parse(prompt.appendContext.slice(prompt.appendContext.indexOf("\n") + 1));
@@ -218,7 +218,7 @@ test("ordinary analysis cannot repair a typed-helper refusal by manufacturing na
   const f=fixture();f.root.task.native.goalId=null;f.root.task.native.goalStatus=null;
   const prompt=await f.app.prompt(f.root),data=JSON.parse(prompt.appendContext.slice(prompt.appendContext.indexOf("\n")+1));
   assert.equal(data.goalStartAvailable,false);assert.ok(!prompt.toolsAllow?.includes("create_goal"));
-  assert.match(prompt.prependSystemContext,/household_analysis_start/);assert.match(prompt.prependSystemContext,/household_analysis_result/);assert.match(prompt.prependSystemContext,/do not replace it with raw sessions_spawn or create_goal/);
+  assert.match(prompt.prependSystemContext,/No guide-loading step/);
   const decision=await f.app.guard(f.root,{toolName:"create_goal",params:{objective:"current request"}});assert.equal(decision.allow,false);
   await assert.rejects(()=>f.app.execute("household_analysis_start",{instruction:"Make a local visual",inputArtifactIds:[]},{}),/test_does_not_spawn/);
   assert.equal(f.writes(),0,"No formal goal or task checkpoint is required for typed analysis admission");

@@ -1346,3 +1346,55 @@ Prepared neutral public configuration/workspace examples and targeted historical
 The source 0.11.1 profile seed preserves existing display names and initials instead of overwriting private database values with neutral public defaults. Existing authorization/role/agent/color refresh remains unchanged, with stable identity keys. The database file receives only this narrow seed-ownership correction; no new responsibility or second identity store is introduced. Focused regression proves fresh neutral labels and preserved private names across restarts. The running 0.11.0 service is not redeployed by this source cleanup.
 
 All-ref rollback evidence, targeted history mapping, exact-source tests and post-rewrite scans belong to private operator evidence. GitHub PR/cache retention remains distinct from branch cleanup. See [public/private data ownership and cleanup limits](public-source-hygiene.md).
+
+## November 26, 2026 — Android protected Connections discoverability (0.6.2-alpha)
+
+The owner reported that the installed phone app has no Connections menu entry.
+Source already contains protected Bitwarden, password and Google onboarding;
+previous Android release records still had phone installation pending. Reused
+those native forms and controller rather than adding a second credential path.
+Six captions now identify account entry explicitly. Android version is
+0.6.2-alpha / code 12; package identity and the previous signing certificate are
+preserved. The generated API remains 0.8.0 and the native contract remains 0.7.0.
+
+Ubuntu assembly, lint (zero errors) and all 11 unit checks passed without skips.
+Signature and package/version verification passed. The installer remains a private
+operator artifact; phone installation and real account-entry acceptance are not
+claimed by build checks. No backend, Gateway, model, grant, credential or database
+change was made. Retained source and installers remain private rollback references; rollback must not
+uninstall the app or restore older business data. Local address restoration was
+separately verified, with existing services recovering and strict HTTPS ready.
+
+## November 27, 2026 independent workshop candidate
+
+Implemented owner-directed exploration through Main's existing native runtime. Removed the proposed offline, resource, package, read-only OS, helper, goal, project-slug, publication and generated-file restrictions. Added persistent OS/workspace storage, native CDI access to both GPUs, automatic scoped file capture and streamed artifact/evidence verification. Kept one native execution/session/task system and one ArtifactStore; no additional skill registry or background scheduler.
+
+The isolated native campaign found and corrected compound-interpreter preflight and root-file readback incompatibilities. Exact compatibility payloads preserve all eight V5 context files. Actual sandbox checks passed; Main solved and independently verified a synthetic problem, then reused its retained method in a fresh conversation. Main also inspected its reference code, edited a copy, debugged a failing regression fixture, and returned a real patch and report. Independent guest execution confirmed 13/13 relevant tests and all delivered hashes. All 654 backend, 22 audit and 11 installer tests pass; source/import checks cover 209 files. Production activation awaits actual Ubuntu sudo authentication for the prepared system deployment. The prepared instruction cleanup removes obsolete host CLI recipes, mandatory conductor/phase-ledger workflows, scheduling directives and compulsory solution preflights while preserving personal memory, audience and communication guidance. Existing Android/Connections changes were preserved; no commit, push, account/grant activation or business database restoration.
+
+## November 27, 2026 workshop activation completed (0.12.0)
+
+The reviewed independent workshop is deployed. Independent checks verified all 96 promoted source copies, four configuration files, three separate workshop compatibility files, preserved ownership/modes/ACLs/xattrs, all eight unchanged V5 files, actual gateway PID/protected config, active ordinary services and inactive legacy user Gateway. All 566 existing artifact objects were copied intact to the large data volume and verified against their original manifests. Main remains 131072/high. Existing identities, grants, credentials, disabled scheduling and business databases retain their owners; no database was restored.
+
+The first activation failed in the helper's 45-second stop timeout, then its missing start function prevented service restoration. Exact preimages and metadata stayed intact. Recovery restored the prior services; an immediate idle observer then failed before native API readiness. Both failed attempts were retained. Corrected lifecycle/readiness behavior passed six targeted tests and the actual production observer. The next activation and independent live verification succeeded. The isolated model fixture was quiesced and retained; no commit or publication was performed. Deployment verification precedes this canonical documentation-only refresh.
+
+
+## 2026-11-27: autonomy follow-up candidate 0.13.0
+
+Implemented the owner-requested remaining restriction cleanup with Ollama serialization/residency deferred. Reused native execution/session/cancellation, current admission, protected Google consent and existing artifacts. Guides and task bookkeeping are optional; private-owner routine data actions use existing permissions. Expanded Gmail content/attachment delivery, removed arbitrary working/evidence ceilings and added native history pagination. Separately pinned ten native/provider overlays, including one explicit successor of the accepted V5 builtin; the original V5/workshop manifests remain unchanged. No new engine, queue, registry or credential store.
+
+Candidate acceptance: 668 backend (no skips), 23 audit, 11 installer, 213 source/import, 16 native checks; a real temporary-skill/source-inspection task with three downloaded files and 1003 independent program cases; synthetic 3 MiB attachment delivery/replay into the actual workshop. Prepared exact offline dependency/source/config/native promotion under the existing service lifecycle and metadata writer. Protected activation pending. No database restoration, account/grant expansion, scheduling activation or publication performed.
+
+
+### 0.13.0 protected activation completed
+
+The owner ran the prepared interactive sudo launcher. Live verification passed all 854 file updates, two configurations and preserved metadata; ten native/provider overlays with explicit V5 chaining; PID/current protected-config attestation, 37 policy/pin checks and credential UID/private-state isolation; and all 566 prior immutable artifacts. All three services are running and the app reports 0.13.0 ready/connected. Persistent lab data, Ollama serving identity and Main 131072/high remain unchanged. No business database restore, held onboarding, scheduling activation, commit, push or publication. Canonical documentation refreshed after exact verification; protected/reference build-time snapshots retained.
+
+
+## 2026-11-27: Google connection read/write option prepared (0.14.0)
+
+Added owner-selected Gmail/Calendar write consent and immediate local read-only downgrade, preserving connection identities and working read grants through failed upgrades. Extended typed Gmail and connected Calendar adapters, existing effect receipts and scoped artifact/workshop attachments. No extra data-action confirmation flow or prescribed skill sequence. Candidate acceptance: 694 backend (zero skips), 219 source/import, 23 audit, 11 installer, Android unit/lint/assembly; synthetic providers only. Protected activation and owner Google consent pending. Ollama/native patches, persistent workshop, current databases and held unrelated onboarding remain unchanged. No commit or push.
+
+
+### 0.14.0 protected activation completed
+
+The owner ran the interactive activation launcher. Independent verification passed all 445 promoted file hashes, two configurations and preserved metadata, plus full credential isolation, current PID/config attestation and 37 policy/pin checks. All three services run and the app reports 0.14.0 ready/connected. All 566 prior artifacts, persistent workshop, pinned native/provider overlays and serial Ollama serving were preserved. Google account write consent and phone installation remain owner steps. No database restoration or unrelated onboarding/scheduling change. Canonical release documentation refreshed after exact verification.

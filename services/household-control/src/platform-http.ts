@@ -4,6 +4,7 @@ import type { AuthenticatedDevice } from "./device-auth.ts";
 import type { HouseholdStoreApi } from "./household-store.ts";
 import { sendJson, parseJson, requireCapability } from "./http-codec.ts";
 import { ArtifactStore, NativeExecutionPolicies, inspectPlatformDependencies, artifactResponseHeaders, PlatformError } from "./platform/index.ts";
+import { pipeline } from "node:stream/promises";
 
 export type PlatformHttp = {
   artifacts: ArtifactStore;
@@ -96,9 +97,9 @@ export function createPlatformRoutes(store: HouseholdStoreApi, platform: Platfor
         const metadata = await platform.artifacts.get(artifactId, principal);
         if (metadata.conversationId !== conversationId) { sendJson(response, 404, { error: "artifact_not_found" }); return true; }
         if (!item[3]) { sendJson(response, 200, { artifact: metadata }); return true; }
-        const result = await platform.artifacts.read(artifactId, principal);
+        const result = await platform.artifacts.openDownload(artifactId, principal);
         response.writeHead(200, artifactResponseHeaders(result.metadata));
-        response.end(result.bytes); return true;
+        await pipeline(result.stream, response); return true;
       }
       sendJson(response, 405, { error: "method_not_allowed" }); return true;
     } catch (error) {

@@ -86,6 +86,7 @@ export type TaskFlowPorts = {
     update(context: TaskFlowContext, value: HouseholdCheckpointUpdate): Promise<HouseholdCheckpoint> | HouseholdCheckpoint;
   };
   artifacts: {
+    verify?(id: string, principal: ArtifactPrincipal, assertCurrent?: () => void): Promise<ArtifactMetadata>;
     read(id: string, principal: ArtifactPrincipal): Promise<{ metadata: ArtifactMetadata; bytes: Buffer }>;
     put(scope: ArtifactScope, principal: ArtifactPrincipal, input: ArtifactInput): Promise<ArtifactMetadata>;
   };

@@ -16,21 +16,28 @@ export class SelectedDomainContextLoader {
     this.root = skillsRoot;
   }
   async load(authorized: DomainProjection[]): Promise<TaskDomain[]> {
-    const root = await realpath(this.root);
-    const manifest = JSON.parse(await readFile(path.join(root, "household-domains.json"), "utf8")) as Mapping;
-    if (manifest.schemaVersion !== 1 || !manifest.domains || typeof manifest.domains !== "object") throw new PlatformError("task_skill_map_invalid", 503);
+    let root:string,manifest:Mapping;
+    const fallback=(domain:DomainProjection):TaskDomain=>({...domain,instructions:"Optional guide unavailable. Use the current authorized tool schemas and choose useful methods."});
+    try{
+      root=await realpath(this.root);
+      manifest=JSON.parse(await readFile(path.join(root,"household-domains.json"),"utf8"));
+      if(manifest.schemaVersion!==1||!manifest.domains||typeof manifest.domains!=="object")return authorized.map(fallback);
+    }catch{return authorized.map(fallback);}
     const result: TaskDomain[] = [];
     for (const domain of authorized) {
       const entry = manifest.domains[domain.id];
       if (!entry) { result.push({ ...domain, instructions: "Use the authorized typed tools and inspect their exact native schema before execution." }); continue; }
-      if (typeof entry.path !== "string" || path.isAbsolute(entry.path) || entry.path.includes("\\") || entry.path.split("/").some(part => !part || part === "." || part === "..")) throw new PlatformError("task_skill_path_invalid", 503);
+      if (typeof entry.path !== "string" || path.isAbsolute(entry.path) || entry.path.includes("\\") || entry.path.split("/").some(part => !part || part === "." || part === "..")) {result.push(fallback(domain));continue;}
       const target = path.resolve(root, entry.path), relative = path.relative(root, target);
       if (relative.startsWith("..") || path.isAbsolute(relative)) throw new PlatformError("task_skill_path_invalid", 503);
-      const stat = await lstat(target), resolved = await realpath(target);
-      if (!stat.isFile() || stat.isSymbolicLink() || resolved !== target || stat.size > 32 * 1024) throw new PlatformError("task_skill_source_invalid", 503);
-      const instructions = await readFile(target, "utf8");
-      if (entry.description !== undefined && (typeof entry.description !== "string" || !entry.description.trim() || entry.description.length > 500 || /[\x00-\x1f\x7f]/.test(entry.description))) throw new PlatformError("task_skill_description_invalid", 503);
-      result.push({ ...domain, description: entry.description ?? domain.description, instructions });
+      let instructions:string;
+      try{
+        const stat=await lstat(target),resolved=await realpath(target);
+        if(!stat.isFile()||stat.isSymbolicLink()||resolved!==target){result.push(fallback(domain));continue;}
+        instructions=await readFile(target,"utf8");
+      }catch{result.push(fallback(domain));continue;}
+      const description=typeof entry.description==='string'&&entry.description.trim()&&!/[\x00-\x1f\x7f]/.test(entry.description)?entry.description:domain.description;
+      result.push({ ...domain, description, instructions });
     }
     return result;
   }

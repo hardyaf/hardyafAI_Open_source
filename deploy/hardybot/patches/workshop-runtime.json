@@ -1,0 +1,23 @@
+{
+  "kind": "household_workshop_native_compatibility",
+  "nativeVersion": "2026.9.8",
+  "scope": "Protected HARDY_WORKSHOP=1 native sandbox only. Existing V5 context patch is unchanged.",
+  "files": [
+    {
+      "path": "dist/bash-tools-3n5rTZUL.mjs",
+      "beforeSha256": "e871089b72268ba00a83cab02aa7000dd80e4118a636390a78783e82a9161dd5",
+      "afterSha256": "a91ce3a4c50169477ef398439acdb6cd8d49252cfa1397df43d88254155c4aad"
+    },
+    {
+      "path": "dist/fs-bridge-CkHTzWVb.mjs",
+      "beforeSha256": "476ce5144e9162d27dd0a88a6c6ca44b63922aca124b0afcdfdb94ed6172d0a3",
+      "afterSha256": "24128919d1776fb00067af3f57c3586b2ffbe6f915b24828b6cd0a83bed90d4c"
+    },
+    {
+      "path": "dist/household-workshop-fs-20261127.mjs",
+      "beforeSha256": null,
+      "afterSha256": "988d502cfb85a4d7e0c721f2f54bd89757a9e3df0248de8c1eb37d3c45257187",
+      "source": "plugins/household-domains/workshop-fs.mjs"
+    }
+  ]
+}

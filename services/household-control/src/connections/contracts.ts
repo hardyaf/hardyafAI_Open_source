@@ -1,5 +1,5 @@
 import { isIP } from "node:net";
-export type GooglePreset = "gmail_read" | "calendar_read" | "household_calendar_manage";
+export type GooglePreset = "gmail_read" | "gmail_manage" | "calendar_read" | "calendar_manage" | "household_calendar_manage";
 export type ConnectionStatus = "connected" | "disconnected" | "needs_reauthorization" | "unknown";
 export type ConnectionRecord = {
   id: string; ownerProfileId: string; label: string; kind: "password" | "google" | "google_client";
@@ -26,12 +26,16 @@ export type GoogleAuthorization = {
   state: string; verifier: string; nonce: string; scopes: string[]; expectedEmail: string;
 };
 export type GoogleGrant = { refreshToken: string; email: string; accountId: string; scopes: string[] };
-export type GoogleReadOperation = "gmail.search" | "gmail.get" | "calendar.list" | "calendar.get";
+export type GoogleReadOperation = "gmail.search" | "gmail.get" | "gmail.drafts.list" | "gmail.drafts.get" | "gmail.labels.list" | "calendar.list" | "calendar.get" | "calendar.calendars" | "calendar.find_operation";
+import type {GoogleWriteOperation} from '../domains/google/write-input.ts';
+export type {GoogleWriteOperation} from '../domains/google/write-input.ts';
+export type GoogleWriteContext = {from:string;operationKey:string;signal?:AbortSignal};
 /** Trusted credential-service context; never accepted from tool or IPC input. */
-export type GoogleReadContext = { messageScope: string };
+export type GoogleReadContext = { messageScope: string; operationKey?:string; signal?:AbortSignal };
 export interface GoogleProvider {
   authorizationUrl(input: GoogleAuthorization): Promise<string>;
   exchange(input: GoogleAuthorization, code: string): Promise<GoogleGrant>;
+  write?(accessToken:string,operation:GoogleWriteOperation,input:unknown,context:GoogleWriteContext):Promise<unknown>;
   revoke(refreshToken: string): Promise<void>;
   refresh(client: {clientId: string;clientSecret: string;redirectUri: string}, refreshToken: string): Promise<{accessToken: string;refreshToken?: string}>;
   read(accessToken: string, operation: GoogleReadOperation, input: unknown, context?: GoogleReadContext): Promise<unknown>;
@@ -44,9 +48,20 @@ export class ConnectionsError extends Error {
 }
 export const presets: Record<GooglePreset, string[]> = {
   gmail_read: ["https://www.googleapis.com/auth/gmail.readonly"],
+  gmail_manage: ["https://www.googleapis.com/auth/gmail.readonly", "https://www.googleapis.com/auth/gmail.modify"],
+  calendar_manage: ["https://www.googleapis.com/auth/calendar.readonly", "https://www.googleapis.com/auth/calendar.events"],
   calendar_read: ["https://www.googleapis.com/auth/calendar.readonly"],
   household_calendar_manage: ["https://www.googleapis.com/auth/calendar.events"],
 };
+export function googleService(preset:unknown):"gmail"|"calendar"|undefined {
+  return typeof preset==='string'&&preset.startsWith('gmail_')?'gmail':typeof preset==='string'&&(preset.startsWith('calendar_')||preset==='household_calendar_manage')?'calendar':undefined;
+}
+export function googleAccess(record:Pick<ConnectionRecord,'scopes'|'preset'>):'read'|'write'{if(record.preset==='gmail_read'||record.preset==='calendar_read')return 'read';return record.scopes.some(x=>[...presets.gmail_manage.filter(x=>!presets.gmail_read.includes(x)),...presets.household_calendar_manage].includes(x))?'write':'read';}
+export const readScopes:Record<GoogleReadOperation,string[]>={
+ 'gmail.search':presets.gmail_manage,'gmail.get':presets.gmail_manage,'gmail.drafts.list':presets.gmail_manage,'gmail.drafts.get':presets.gmail_manage,'gmail.labels.list':presets.gmail_manage,
+ 'calendar.find_operation':presets.calendar_manage,'calendar.list':presets.calendar_manage,'calendar.get':presets.calendar_manage,'calendar.calendars':presets.calendar_read,
+};
+export function writeScopes(operation:GoogleWriteOperation):string[]{return ['gmail.send','gmail.draft.save','gmail.draft.send','gmail.draft.delete','gmail.label.save','gmail.label.delete','gmail.modify','gmail.trash'].includes(operation)?['https://www.googleapis.com/auth/gmail.modify']:['calendar.create','calendar.update','calendar.delete'].includes(operation)?presets.household_calendar_manage:[];}
 export function object(value: unknown): Record<string, unknown> {
   if (!value || typeof value !== "object" || Array.isArray(value)) throw new ConnectionsError("invalid_connection_request", 400);
   return value as Record<string, unknown>;

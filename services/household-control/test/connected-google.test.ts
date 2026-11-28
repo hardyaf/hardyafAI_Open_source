@@ -57,7 +57,7 @@ test("native Google broker reuses admitted private source and filters discovery 
     const google = new GoogleDomain({ gogBinary: "/trusted/gog", account: "bot@example.invalid", client: "house", calendarId: "house", timeZone: "America/New_York" }, runner, f.client);
     const result = await google.execute("household_email_search", { connectionId: discovered.connections[0].id, query: "from:school" }, f.context);
     assert.equal(f.calls(), 1); assert.equal((result as any).source, "connected_google");
-    await assert.rejects(google.execute("household_calendar_create", { connectionId: discovered.connections[0].id }, f.context), /connected_google_unavailable/);
+    await assert.rejects(google.execute("household_calendar_create", { connectionId: discovered.connections[0].id }, f.context), /invalid_google_write/);
     await assert.rejects(f.client.read(discovered.connections[0].id, "household_calendar_list", {}, f.context), /not_allowed/);
     await assert.rejects(f.client.read(discovered.connections[0].id, "household_email_search", { query: "from:school" }, { ...f.context, credentialAuthority: { ...f.context.credentialAuthority, runId: "unrelated-run" } }), /lineage_not_authorized/);
     assert.equal(f.calls(), 1);
@@ -83,28 +83,30 @@ test("Google read provider uses fixed read URLs and rejects caller-selected acco
     await provider.read("fixture-access", "gmail.search", { query: "from:school", limit: 10 });
     assert.equal(new URL(calls[0]).origin, "https://gmail.googleapis.com"); assert.equal(new URL(calls[0]).pathname, "/gmail/v1/users/me/messages");
     await assert.rejects(provider.read("fixture-access", "gmail.search", { query: "from:school", account: "other" }), /invalid_connection_request/);
-    await assert.rejects(provider.read("fixture-access", "calendar.list", { from: "2026-11-01T00:00:00Z", to: "2026-12-01T00:00:00Z", calendarId: "other" }), /invalid_connection_request/);
-    assert.equal(calls.length, 1);
+    await provider.read("fixture-access", "calendar.list", { from: "2026-11-01T00:00:00Z", to: "2026-12-01T00:00:00Z", calendarId: "other@example.invalid" });
+    assert.equal(new URL(calls[1]).pathname, "/calendar/v3/calendars/other%40example.invalid/events");
+    await assert.rejects(provider.read("fixture-access", "calendar.list", {from:"2026-11-01T00:00:00Z",to:"2026-12-01T00:00:00Z",calendarId:"../escape"}), /invalid_google_write/);
+    assert.equal(calls.length, 2);
   } finally { globalThis.fetch = previous; }
   assert.throws(() => redirect("https://10.23.45.67:4321/v1/connections/google/callback"), /invalid_google_redirect/);
   assert.equal(redirect("http://localhost:8787/oauth2/callback"), "http://localhost:8787/oauth2/callback");
 });
 
-test("connected Gmail read projects plain text and omits raw MIME HTML and attachment data", async () => {
+test("connected Gmail exposes mail headers and attachment handles, with inert HTML fallback", async () => {
   const provider = await createGoogleProvider(), previous = globalThis.fetch;
   const fixture = {id:"fixture-message",threadId:"fixture-thread",snippet:"Provider plain snippet",payload:{headers:[{name:"Subject",value:"Fixture mail"},{name:"X-Provider-Secret",value:"hidden-header"}],parts:[
     {mimeType:"text/plain",body:{data:Buffer.from("Plain fixture body").toString("base64url")}},
-    {mimeType:"text/html",body:{data:Buffer.from("<script>hidden-html</script>").toString("base64url")}},
+    {mimeType:"text/html",body:{data:Buffer.from("<script>hidden-html</script><p>Readable &amp; useful</p>").toString("base64url")}},
     {mimeType:"text/plain",filename:"attachment.txt",body:{data:Buffer.from("hidden-attachment").toString("base64url"),attachmentId:"hidden-attachment-id"}},
   ]}};
   globalThis.fetch = async () => new Response(JSON.stringify(fixture),{status:200});
   try {
     const value = await provider.read("fixture-access","gmail.get",{messageId:"fixture-message"},{messageScope:"a".repeat(64)}) as any;
     assert.equal(value.body,"Plain fixture body"); assert.equal(value.bodySource,"text/plain");
-    assert.doesNotMatch(JSON.stringify(value),/hidden-header|hidden-html|hidden-attachment|attachmentId|payload/);
+    assert.equal(value.headers[1].value,"hidden-header");assert.equal(value.attachments[0].attachmentId,"hidden-attachment-id");assert.doesNotMatch(JSON.stringify(value),/hidden-html|"data"|payload/);
     fixture.payload.parts = [fixture.payload.parts[1]];
     const htmlOnly = await provider.read("fixture-access","gmail.get",{messageId:"fixture-message"},{messageScope:"a".repeat(64)}) as any;
-    assert.equal(htmlOnly.body,"Provider plain snippet"); assert.equal(htmlOnly.bodySource,"snippet");
+    assert.equal(htmlOnly.body,"Readable & useful"); assert.equal(htmlOnly.bodySource,"text/html");
   } finally {globalThis.fetch=previous;}
 });
 

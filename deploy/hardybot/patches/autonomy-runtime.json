@@ -1,0 +1,178 @@
+{
+  "nativeVersion": "2026.9.8",
+  "purpose": "Optional guidance, uncapped local experiments and evidence; serial Ollama serving unchanged",
+  "files": [
+    {
+      "package": "openclaw",
+      "path": "dist/validation-core-YrPXii0X.mjs",
+      "beforeSha256": "4adfa62b5e37aecd89ae8474194ec574cd804d3bd25bd1555fdec798bd9dcf67",
+      "afterSha256": "0dabfb16f4ca2b6e7a941c81f904af267cc7296d30cf21c864a4b6227fecb1de",
+      "edits": [
+        [
+          "return depth < maxSpawnDepth;",
+          "return maxSpawnDepth === 0 || depth < maxSpawnDepth;"
+        ],
+        [
+          "return resolveOptionalIntegerOption(cfg?.agents?.defaults?.subagents?.maxConcurrent, { min: 1 }) ?? 8;",
+          "return cfg?.agents?.defaults?.subagents?.maxConcurrent === 0 ? Number.POSITIVE_INFINITY : resolveOptionalIntegerOption(cfg?.agents?.defaults?.subagents?.maxConcurrent, { min: 1 }) ?? 8;"
+        ]
+      ]
+    },
+    {
+      "package": "openclaw",
+      "path": "dist/zod-schema-b5tlDVBo.mjs",
+      "beforeSha256": "4bf74b8c7e4ce90d2728e65a9f0c8229f8f0a577e0d7dbdaf9b39b33e21bf376",
+      "afterSha256": "37878ab8a0bf73ffec0e15338f449c6d416cdc394bdc49d5f0e0581d0cf0a3f7",
+      "edits": [
+        [
+          "maxConcurrent: number().int().positive().optional().describe(\"Maximum concurrent child-agent runs",
+          "maxConcurrent: number().int().nonnegative().optional().describe(\"Zero removes the concurrency quota. Maximum concurrent child-agent runs"
+        ],
+        [
+          "maxSpawnDepth: number().int().min(1).max(5).optional().describe(\"Maximum nesting depth",
+          "maxSpawnDepth: number().int().nonnegative().optional().describe(\"Zero removes the depth quota. Maximum nesting depth"
+        ],
+        [
+          "maxChildrenPerAgent: number().int().min(1).max(20).optional().describe(\"Maximum number",
+          "maxChildrenPerAgent: number().int().nonnegative().optional().describe(\"Zero removes the child quota. Maximum number"
+        ]
+      ]
+    },
+    {
+      "package": "openclaw",
+      "path": "dist/spawn-thread-binding-CC3RQjiW.mjs",
+      "beforeSha256": "40d81917324899d0c2486073c335c9953820d007009becc7c7c5b7eb5ccae3cd",
+      "afterSha256": "8182a97c0375b3400e05899412c9fe7aa25e4940e8c6fa86b127c742a41ae745",
+      "edits": [
+        [
+          "if (params.activeChildren < params.maxActiveChildren) return { ok: true };",
+          "if (params.maxActiveChildren === 0 || params.activeChildren < params.maxActiveChildren) return { ok: true };"
+        ]
+      ]
+    },
+    {
+      "package": "openclaw",
+      "path": "dist/sessions-spawn-tool-Bs6nTL_8.mjs",
+      "beforeSha256": "5fe67cbefea90995560f4b106e0be4af22dfc79d498cb358e2bcc8d5ae055e1d",
+      "afterSha256": "fc7d40c3b855fe38b5659e70757e2682c68ebc02ab7d6f8ff08837ff7299e359",
+      "edits": [
+        [
+          "return activeChildren >= maxChildren ? {",
+          "return maxChildren > 0 && activeChildren >= maxChildren ? {"
+        ]
+      ]
+    },
+    {
+      "package": "openclaw",
+      "path": "dist/exec-tool-timeout-Bv8Jutor.mjs",
+      "beforeSha256": "f82b77fa5824edbcf5245f1e441728d5c0d5f4e0fcbd833e4d234a84e408d747",
+      "afterSha256": "4196a0905fd41d86b4aa7277f9147cb9d31b3c3497fe13dd2351f9623bd904eb",
+      "edits": [
+        [
+          "return timeoutSec && timeoutSec > 0 ? timeoutSec : 1800;",
+          "return timeoutSec === 0 ? 0 : timeoutSec && timeoutSec > 0 ? timeoutSec : 1800;"
+        ]
+      ]
+    },
+    {
+      "package": "openclaw",
+      "path": "dist/zod-schema.agent-runtime-BVnAAfQo.mjs",
+      "beforeSha256": "6cca835dcbed444e52c129b4f6d51debb573a4949e14812769dba7a016be90bc",
+      "afterSha256": "59c74a553e52192e54bbf1e4647caf4bb3f08262a9cc446f46a67e47994522d1",
+      "edits": [
+        [
+          "/** Default timeout (seconds) before auto-killing exec commands. */\n\ttimeoutSeconds: number().int().positive().optional(),",
+          "/** Default timeout (seconds); zero disables automatic command killing. */\n\ttimeoutSeconds: number().int().nonnegative().optional(),"
+        ],
+        [
+          "maxChars: number().int().positive().optional(),",
+          "maxChars: number().int().nonnegative().optional(),"
+        ],
+        [
+          "maxCharsCap: number().int().positive().optional(),",
+          "maxCharsCap: number().int().nonnegative().optional(),"
+        ],
+        [
+          "maxResponseBytes: number().int().positive().optional(),",
+          "maxResponseBytes: number().int().nonnegative().optional(),"
+        ]
+      ]
+    },
+    {
+      "package": "openclaw",
+      "path": "dist/openclaw-tools-BwWTN0hs.mjs",
+      "beforeSha256": "ea5a9c72c98e0012b2098c40b34f8de0e721ad520cda0594b902879036e1630f",
+      "afterSha256": "d50fcb4bf079e047e017c401bbf2a6926699403a247f2c9e5436278abd13cfd2",
+      "edits": [
+        [
+          "return resolveIntegerOption(fetch?.maxCharsCap, DEFAULT_FETCH_MAX_CHARS, { min: 100 });",
+          "return fetch?.maxCharsCap === 0 ? Number.POSITIVE_INFINITY : resolveIntegerOption(fetch?.maxCharsCap, DEFAULT_FETCH_MAX_CHARS, { min: 100 });"
+        ],
+        [
+          "function resolveFetchMaxResponseBytes(fetch) {",
+          "function resolveFetchMaxResponseBytes(fetch) {\n\tif (fetch?.maxResponseBytes === 0) return Number.POSITIVE_INFINITY;"
+        ],
+        [
+          "maxChars: resolveIntegerOption(maxChars ?? executionFetch?.maxChars, DEFAULT_FETCH_MAX_CHARS, {",
+          "maxChars: maxChars === undefined && executionFetch?.maxChars === 0 ? Number.POSITIVE_INFINITY : resolveIntegerOption(maxChars ?? executionFetch?.maxChars, DEFAULT_FETCH_MAX_CHARS, {"
+        ],
+        [
+          "const WEB_FETCH_SPILL_MAX_CHARS = 2e6;",
+          "const WEB_FETCH_SPILL_MAX_CHARS = Number.POSITIVE_INFINITY;"
+        ]
+      ]
+    },
+    {
+      "package": "openclaw",
+      "path": "dist/builtin-openclaw-DEib7rq9.mjs",
+      "beforeSha256": "06d5ab0e238b148efe3f1c5912795ed9c797d18aa2816fbf8930e4e3acc85d43",
+      "afterSha256": "e0846da268d46dc93dc8cdf25031815e1d73d9ad8fef0f0870a624416e5d18f4",
+      "edits": [
+        [
+          "function resolveLlmFirstEventTimeoutMs(params) {\n",
+          "function resolveLlmFirstEventTimeoutMs(params) {\n\t// Local inference can wait in the existing serial provider queue; native cancellation remains authoritative.\n\tif (params?.modelRequestTimeoutMs === undefined && resolveRuntimeModelLocality(params).isLocalRuntimeModel) return 0;\n"
+        ]
+      ]
+    },
+    {
+      "package": "searxng",
+      "path": "dist/.setup/searxng-search-provider-ChvQoG8W.mjs",
+      "beforeSha256": "a69af797b499016f400fbb9dc3560fce221f0ffa59a223287ebac5c5112ab732",
+      "afterSha256": "96a5472b94446d774e773ae8899d00ff663b5dd9b847dea9132f5b888596216a",
+      "edits": [
+        [
+          "Number of results to return (1-10).",
+          "Number of available results to return; omitted returns all results supplied by the search engine."
+        ],
+        [
+          "minimum: 1,\n\t\t\tmaximum: 10",
+          "minimum: 1"
+        ],
+        [
+          "\t\t\t\t\t\tmax: 10,\n",
+          ""
+        ],
+        [
+          "count must be an integer from 1 to 10.",
+          "count must be a positive integer."
+        ]
+      ]
+    },
+    {
+      "package": "searxng",
+      "path": "dist/.setup/searxng-client-FNZHxETE.mjs",
+      "beforeSha256": "68c96d54dba01c261aa8b121f4365ce0f8ede0a086ca50977ec7dbe0b048fe61",
+      "afterSha256": "47909010a6edc1f64aa50cfe21a6f3ceedf84d819ec4218f2ea06ca66970532b",
+      "edits": [
+        [
+          "const count = resolveSearchCount(params.count, DEFAULT_SEARCH_COUNT);",
+          "const count = params.count === undefined ? Number.POSITIVE_INFINITY : Math.max(1, Math.floor(params.count));"
+        ],
+        [
+          "const body = await readResponseText(response, { maxBytes: MAX_RESPONSE_BYTES });",
+          "const body = await readResponseText(response);"
+        ]
+      ]
+    }
+  ]
+}

@@ -105,7 +105,7 @@ export function createHouseholdServer(options: ServerOptions = {}) {
     eventHub.publish("submission.changed", { receipt }, { kind: "profile", profileId: receipt.profileId });
   });
 
-  const server = createServer({ requestTimeout: 60_000, headersTimeout: 15_000 }, async (request, response) => {
+  const server = createServer({ requestTimeout: 0, headersTimeout: 15_000 }, async (request, response) => {
     try {
       if (closing) { sendJson(response, 503, { error: "service_stopping" }); return; }
       const url = new URL(request.url ?? "/", "http://household.local");
@@ -126,7 +126,8 @@ export function createHouseholdServer(options: ServerOptions = {}) {
 
       if(options.publicRoute&&await options.publicRoute(request,response,url))return;
       const isReceiptPhoto = request.method === "PUT" && url.pathname.startsWith(receiptCapturePath + "/");
-      const bodyLimit = options.route && isReceiptPhoto ? maximumReceiptPhotoBytes
+      const bodyLimit = request.method === "POST" && /^\/v1\/conversations\/[^/]+\/messages$/.test(url.pathname) ? Infinity
+        : options.route && isReceiptPhoto ? maximumReceiptPhotoBytes
         : options.route && request.method === "POST" && url.pathname === dictationPath
         ? maximumDictationBytes
         : options.route && request.method === "POST" && /^\/v1\/conversations\/[^/]+\/artifacts$/.test(url.pathname)
@@ -274,7 +275,7 @@ export function createHouseholdServer(options: ServerOptions = {}) {
           typeof body.operationId !== "string" || !/^[a-zA-Z0-9][a-zA-Z0-9._:-]{7,127}$/.test(body.operationId) ||
           typeof body.issuedAtMs !== "number" || !Number.isSafeInteger(body.issuedAtMs) || body.issuedAtMs < 1 ||
           !["edit","pause","resume","block","complete","clear"].includes(String(body.action)) ||
-          body.objective !== undefined && (typeof body.objective !== "string" || !body.objective.trim() || body.objective.length > 16_000) ||
+          body.objective !== undefined && (typeof body.objective !== "string" || !body.objective.trim()) ||
           body.action === "edit" && typeof body.objective !== "string" ||
           body.note !== undefined && (typeof body.note !== "string" || body.note.length > 2_000)) {
           sendJson(response, 400, { error: "invalid_goal_operation" }); return;
@@ -302,7 +303,7 @@ export function createHouseholdServer(options: ServerOptions = {}) {
         const body = parseJson(bodyBuffer);
         const text = typeof body.text === "string" ? body.text.trim() : "";
         const submissionId = typeof body.submissionId === "string" ? body.submissionId.trim() : "";
-        if (Object.keys(body).some(key => !["text","submissionId","goalStart","mode","artifactIds","replyToQuestionId","focus","approval"].includes(key)) || text.length < 1 || text.length > 20_000 || !/^[A-Za-z0-9][A-Za-z0-9._:-]{7,127}$/.test(submissionId)) {
+        if (Object.keys(body).some(key => !["text","submissionId","goalStart","mode","artifactIds","replyToQuestionId","focus","approval"].includes(key)) || text.length < 1 || !/^[A-Za-z0-9][A-Za-z0-9._:-]{7,127}$/.test(submissionId)) {
           sendJson(response, 400, { error: "invalid_message" });
           return;
         }
@@ -314,9 +315,6 @@ export function createHouseholdServer(options: ServerOptions = {}) {
         }
         if(taskContext.mode === "diagnostic" && (profile.role !== "admin" || !profile.capabilities.includes("viewDiagnostics"))) {
           sendJson(response,403,{error:"diagnostic_operator_required"}); return;
-        }
-        if(["task","brain_dump","diagnostic"].includes(taskContext.mode) && text.length > 16_000) {
-          sendJson(response,400,{error:"invalid_task_message_length"}); return;
         }
         const conversation = store.getConversation(profile,conversationId);
         if(!conversation || conversation.ownerProfileId !== profile.id || conversation.agentId !== profile.agentId) {
@@ -339,7 +337,7 @@ export function createHouseholdServer(options: ServerOptions = {}) {
         let goalStart: { issuedAtMs: number } | undefined;
         if (body.goalStart !== undefined) {
           const start = body.goalStart as Record<string, unknown>;
-          if (text.length > 16_000 || !start || typeof start !== "object" || Array.isArray(start) || Object.keys(start).some(key => key !== "issuedAtMs") ||
+          if (!start || typeof start !== "object" || Array.isArray(start) || Object.keys(start).some(key => key !== "issuedAtMs") ||
             typeof start.issuedAtMs !== "number" || !Number.isSafeInteger(start.issuedAtMs) || start.issuedAtMs < 1) {
             sendJson(response, 400, { error: "invalid_goal_start" }); return;
           }
@@ -482,7 +480,7 @@ function createRuntime() {
   const gatewayToken = process.env.OPENCLAW_GATEWAY_TOKEN;
   const stateRoot = process.env.HARDY_HOME_STATE_ROOT ?? resolve(databasePath, "..");
   const artifacts = new ArtifactStore({ root: process.env.HARDY_HOME_ARTIFACT_ROOT ?? resolve(stateRoot, "artifacts") });
-  const policies = new NativeExecutionPolicies({
+  let policies = new NativeExecutionPolicies({
     configPath: process.env.OPENCLAW_CONFIG_PATH ?? resolve(process.env.USERPROFILE ?? process.env.HOME ?? ".", ".openclaw", "openclaw.json"),
     image: process.env.HARDY_HOME_SANDBOX_IMAGE ?? "hardy-home-analysis:slice1",
   });
@@ -526,7 +524,7 @@ function createRuntime() {
         throw Object.assign(new Error("dictation_authority_revoked"), { statusCode: 403 });
     },
   });
-  const baseRoute = createPlatformRoutes(store, { artifacts, policies, dependencies: {
+  const baseRoute = createPlatformRoutes(store, { artifacts, get policies() { return policies; }, dependencies: {
     pythonPath: process.env.HARDY_HOME_PYTHON_PATH, documentReaderPath: process.env.HARDY_HOME_DOCUMENT_READER,
     bitwardenPath: process.env.BWS_BIN, bitwardenConfigPath: process.env.BWS_CONFIG_FILE, bitwardenBootstrapPresent: !!process.env.BWS_ACCESS_TOKEN,
   } });
@@ -556,6 +554,7 @@ function createRuntime() {
     const configurationPath=process.env.HARDY_HOME_DOMAINS_CONFIG;
     if(configurationPath && adapter instanceof OpenClawAgentAdapter) {
       const configuration=await loadDomainConfiguration(configurationPath);
+      policies=new NativeExecutionPolicies({configPath:configuration.execution.nativeConfigPath,image:configuration.execution.sandboxImage,workshop:configuration.execution.workshop});
       domains=new HouseholdDomainRuntime({database,adapter,artifacts,configuration,
         connectedGoogle:process.env.HARDY_CREDENTIALS_CONSUMER_SOCKET ? new ConnectedGoogleClient(process.env.HARDY_CREDENTIALS_CONSUMER_SOCKET) : undefined});
       if (configuration.fitbit) fitbitRoutes=createFitbitRoutes({configuration:configuration.fitbit,effects:new DeviceEffectStore(database.domainConnection()),assertCurrent:assertDeviceCurrent});

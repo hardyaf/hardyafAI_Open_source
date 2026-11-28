@@ -82,7 +82,7 @@ test("durable human waiting finalizes without completing or clearing the unfinis
   const current=card(handoff);assert.ok(current.steps!.some(step=>step.status!=="completed"));
   const context={scope:{taskId:"goal"},native:{goalId:"goal",goalStatus:"active"},source:{id:"human-source"}} as any;
   const decision=decideTaskFinalize(context,{checkpoint:null,handoff,question:null});
-  assert.equal(decision!.action,"finalize");assert.equal(decision!.retry,undefined);
+  assert.equal(decision,undefined);
   assert.equal(handoff.terminal,null);assert.ok(current.steps!.some(step=>step.status!=="completed"));
 });
 

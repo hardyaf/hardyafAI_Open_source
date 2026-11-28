@@ -1,4 +1,6 @@
 import { createHash, randomUUID } from "node:crypto";
+import { buildCancellationLineage } from "./native-cancel-lineage.ts";
+import type { NativeCancellationLineage } from "./native-cancel-lineage.ts";
 import {ConversationOrganizationRepository,ConversationOrganizationError} from "./conversation-organization.ts";
 import type {
   ChatMessage, Conversation, ConversationActivity, FamilyProfile, HouseholdAgentAdapter, HouseholdAgentEvent,
@@ -477,7 +479,7 @@ export class SqliteHouseholdStore implements HouseholdStoreApi {
           taskContext.expectedGoalId=goal?.id??null;taskContext.expectedSessionId=native.sessionId;
         }
       }else if(["task","brain_dump","diagnostic"].includes(taskContext.mode)){
-        if(args.text.length>16_000)throw admissionError("invalid_task_message_length",400);
+
         goalStart??={issuedAtMs:taskContext.admittedAtMs};
       }
     }
@@ -596,14 +598,22 @@ export class SqliteHouseholdStore implements HouseholdStoreApi {
     if(!Number.isSafeInteger(operation.issuedAtMs)||operation.issuedAtMs<1||operation.issuedAtMs>Date.now()+5*60_000||
       !/^[A-Za-z0-9][A-Za-z0-9._:-]{7,127}$/.test(operation.operationId)||!operation.goalId&&!operation.runId)throw admissionError("invalid_cancel_operation",400);
     if(this.database.getGoalControlIssuedAt(conversationId)>operation.issuedAtMs)throw admissionError("cancel_superseded_conflict");
-    const adapter=this.adapter as HouseholdAgentAdapter&{cancelTarget?:(conversation:Conversation,operation:CancelOperation,assertCurrent:()=>void)=>Promise<void>};
+    const adapter=this.adapter as HouseholdAgentAdapter&{cancelTarget?:(conversation:Conversation,operation:CancelOperation,assertCurrent:()=>void,lineage?:NativeCancellationLineage)=>Promise<void>};
     if(!adapter.cancelTarget || !this.adapter.getContext)throw admissionError("targeted_cancel_unavailable",503);
     const native=await this.adapter.getContext(conversation);assertCurrent();
-    if(operation.goalId&&native.goal?.id!==operation.goalId || operation.runId&&native.runId!==operation.runId)throw admissionError("cancel_target_conflict");
+    const parentGrant=this.controls.get(conversation.sessionKey),source=parentGrant?this.database.submissions.get(parentGrant.sourceId):undefined;
+    const childGrants=parentGrant?this.controls.childrenForSource(conversation.sessionKey,parentGrant.sourceId):[];
+    const lineage=!operation.goalId?buildCancellationLineage(conversation,native,source&&source.receipt.profileId===profile.id?
+      {id:source.receipt.submissionId,runId:source.receipt.runId??null,status:source.receipt.status}:undefined,parentGrant,childGrants,operation.runId):null;
+    if(operation.goalId&&native.goal?.id!==operation.goalId || operation.runId&&native.runId!==operation.runId&&!lineage)throw admissionError("cancel_target_conflict");
+    const parentFingerprint=canonicalJson(parentGrant),childrenFingerprint=canonicalJson(childGrants);
     this.database.recordGoalControl(conversationId,operation.issuedAtMs);
-    const admission=()=>{assertCurrent();if(this.database.getGoalControlIssuedAt(conversationId)>operation.issuedAtMs)throw admissionError("cancel_superseded_conflict");};
+    const admission=()=>{assertCurrent();if(this.database.getGoalControlIssuedAt(conversationId)>operation.issuedAtMs)throw admissionError("cancel_superseded_conflict");
+      if(lineage&&(canonicalJson(this.controls.get(conversation.sessionKey))!==parentFingerprint||canonicalJson(this.controls.childrenForSource(conversation.sessionKey,parentGrant!.sourceId))!==childrenFingerprint))throw admissionError("cancel_target_conflict");};
     const target={...operation,...(!operation.runId&&native.runId?{runId:native.runId}:{})};
-    await adapter.cancelTarget(conversation,target,admission);admission();
+    if(lineage)await adapter.cancelTarget(conversation,target,admission,lineage);
+    else await adapter.cancelTarget(conversation,target,admission);
+    admission();
     for(const receipt of this.database.submissions.cancelTargeted(conversationId,profile.id,operation))this.publish(receipt);
     const result={cancelled:true,...(operation.goalId?{goalId:operation.goalId}:{}),...(target.runId?{runId:target.runId}:{})};
     try{this.controls.recordControl(operation.operationId,conversationId,request,result);}

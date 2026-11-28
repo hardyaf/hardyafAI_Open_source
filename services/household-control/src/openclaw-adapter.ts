@@ -19,6 +19,8 @@ import { nativeProgressFromResult } from "./native-progress.ts";
 import type { NativeProgress } from "./native-progress.ts";
 import type { MessageTaskContext } from "./request-context.ts";
 import type { NativeAnalysisChild, NativeAnalysisObservation } from "./analysis-flow/types.ts";
+import { cancelNativeLineage } from "./native-cancel-lineage.ts";
+import type { NativeCancellationLineage } from "./native-cancel-lineage.ts";
 
 type NativeContext = { page: string; title?: string; selection?: string };
 type ConnectionWaiter = { resolve: () => void; reject: (error: Error) => void; timer: ReturnType<typeof setTimeout> };
@@ -303,10 +305,19 @@ export class OpenClawAgentAdapter implements HouseholdAgentAdapter {
   async listMessages(conversation: Conversation): Promise<ChatMessage[]> {
     this.track(conversation);
     await this.connected();
-    const result = await this.client.request("chat.history", {
-      sessionKey: conversation.sessionKey, agentId: conversation.agentId, limit: 200, maxChars: 100_000,
-    }, { timeoutMs: this.requestTimeoutMs });
-    return normalizeHistory(conversation.id, result);
+    const pages:ChatMessage[][]=[],seen=new Set<number>();let offset:number|undefined,sessionId:string|undefined;
+    while(true){
+      const result=await this.client.request("chat.history",{
+        sessionKey:conversation.sessionKey,agentId:conversation.agentId,limit:200,maxChars:500_000,
+        ...(offset!==undefined?{offset}:{}),...(sessionId?{sessionId}:{})
+      },{timeoutMs:this.requestTimeoutMs});
+      const page=record(result);pages.unshift(normalizeHistory(conversation.id,result));
+      if(!page?.hasMore)break;
+      const next=page.nextOffset;
+      if(!Number.isSafeInteger(next)||Number(next)<0||seen.has(Number(next)))throw new HouseholdDispatchError("history_pagination_invalid","not_sent");
+      seen.add(Number(next));offset=Number(next);if(typeof page.sessionId==='string')sessionId=page.sessionId;
+    }
+    return pages.flat();
   }
 
   async submitMessage(args: {
@@ -319,7 +330,7 @@ export class OpenClawAgentAdapter implements HouseholdAgentAdapter {
     if (args.shouldQueue) return { ...base, status: "queued", queuePosition: args.queuePosition };
     validateNativeContext(args.nativeContext);
     if (args.goalStart && (!Number.isSafeInteger(args.goalStart.issuedAtMs) || args.goalStart.issuedAtMs < 0 ||
-      !args.text.trim() || args.text.length > 16_000)) throw new HouseholdDispatchError("goal_start_invalid", "not_sent");
+      !args.text.trim())) throw new HouseholdDispatchError("goal_start_invalid", "not_sent");
     this.track(args.conversation);
     await this.connected();
     await this.assertHouseholdBoundary();
@@ -465,7 +476,7 @@ export class OpenClawAgentAdapter implements HouseholdAgentAdapter {
     if (!operation.goalId || !operation.operationId || operation.operationId.length > 128 ||
       !Number.isSafeInteger(operation.issuedAtMs) || operation.issuedAtMs < 0 ||
       !["edit", "pause", "resume", "block", "complete", "clear"].includes(operation.action) ||
-      operation.action === "edit" && (typeof operation.objective !== "string" || !operation.objective.trim() || operation.objective.length > 16_000) ||
+      operation.action === "edit" && (typeof operation.objective !== "string" || !operation.objective.trim()) ||
       operation.note !== undefined && (typeof operation.note !== "string" || operation.note.length > 2_000)) throw new Error("goal_operation_invalid");
     this.track(conversation);
     await this.connected();
@@ -484,15 +495,17 @@ export class OpenClawAgentAdapter implements HouseholdAgentAdapter {
 
   /** Native ownership/terminal observation only; the caller supplies a fresh root-grant fence. */
   async observeAnalysisChild(args:NativeAnalysisObservation):Promise<NativeAnalysisChild>{
+    const agentId=args.expectedAgentId??"household-analysis";
+    if(!["household-analysis",args.parentSessionKey?.split(":")[1]].includes(agentId))throw new HouseholdDispatchError("analysis_child_binding_invalid","not_sent");
     if(!args.childSessionKey || args.childSessionKey.length>512 || !args.runId || args.runId.length>200 || !args.parentSessionKey || !args.rootTaskId || !args.expectedSessionId ||
       args.childSessionKey===args.parentSessionKey || !this.restrictedRuntimeCheck || !this.restrictedSessionCheck)throw new HouseholdDispatchError("analysis_child_binding_invalid","not_sent");
-    args.assertCurrent();await this.restrictedRuntimeCheck("household-analysis");args.assertCurrent();
-    await this.restrictedSessionCheck(args.childSessionKey,"household-analysis");args.assertCurrent();
-    const child={agentId:"household-analysis",sessionKey:args.childSessionKey};
+    args.assertCurrent();await this.restrictedRuntimeCheck(agentId);args.assertCurrent();
+    await this.restrictedSessionCheck(args.childSessionKey,agentId);args.assertCurrent();
+    const child={agentId,sessionKey:args.childSessionKey};
     const binding=(row:JsonRecord)=>{
       // The native child projection may omit lastRunId. Callers supply a
       // trusted native admission grant binding this run to the exact session ID.
-      if(row.agentId!=="household-analysis" || row.parentSessionKey!==args.parentSessionKey ||
+      if(row.agentId!==agentId || row.parentSessionKey!==args.parentSessionKey ||
         row.sessionId!==args.expectedSessionId || row.lastRunId!=null&&row.lastRunId!==args.runId ||
         Array.isArray(row.activeRunIds)&&row.activeRunIds.some(id=>id!==args.runId))
         throw new HouseholdDispatchError("analysis_child_binding_invalid","not_sent");
@@ -502,8 +515,8 @@ export class OpenClawAgentAdapter implements HouseholdAgentAdapter {
     args.assertCurrent();
     const latest=await this.describe(child);binding(latest);
     if(latest.sessionId!==row.sessionId)throw new HouseholdDispatchError("analysis_child_binding_invalid","not_sent");
-    await this.restrictedRuntimeCheck("household-analysis");
-    await this.restrictedSessionCheck(args.childSessionKey,"household-analysis");args.assertCurrent();
+    await this.restrictedRuntimeCheck(agentId);
+    await this.restrictedSessionCheck(args.childSessionKey,agentId);args.assertCurrent();
     const exact=stateFromExactObservation(observation),details=record(observation);
     if(details?.runId!==args.runId)throw new HouseholdDispatchError("analysis_child_binding_invalid","not_sent");
     let state:NativeAnalysisChild["state"];
@@ -511,11 +524,19 @@ export class OpenClawAgentAdapter implements HouseholdAgentAdapter {
     else if(latest.subagentRunState==="paused" || details?.yielded===true&&details.livenessState==="paused")state="paused";
     else if(latest.hasActiveRun===true || latest.status==="running" || latest.status==="queued" || exact==="queued" || exact==="running")state="running";
     else throw new HouseholdDispatchError("analysis_child_outcome_unavailable","not_sent");
-    return {childSessionKey:args.childSessionKey,runId:args.runId,agentId:"household-analysis",parentSessionKey:args.parentSessionKey,rootTaskId:args.rootTaskId,sandboxed:true,state};
+    return {childSessionKey:args.childSessionKey,runId:args.runId,agentId,parentSessionKey:args.parentSessionKey,rootTaskId:args.rootTaskId,sandboxed:true,state};
   }
 
-  async cancelTarget(conversation:Conversation,operation:{operationId:string;issuedAtMs:number;goalId?:string;runId?:string},admission:()=>void):Promise<void>{
+  async cancelTarget(conversation:Conversation,operation:{operationId:string;issuedAtMs:number;goalId?:string;runId?:string},admission:()=>void,lineage?:NativeCancellationLineage):Promise<void>{
     const current=await this.getContext(conversation);assertAdmission(admission);
+    if(lineage){
+      if(operation.goalId||operation.runId!==lineage.rootRunId||current.sessionId!==lineage.rootSessionId)throw new HouseholdDispatchError("cancel_target_conflict","not_sent");
+      try{await cancelNativeLineage(conversation,lineage,{describe:target=>this.describe(target),assertCurrent:()=>assertAdmission(admission),
+        abort:async(target,runId)=>{const result=record(await this.client.request("sessions.abort",{key:target.sessionKey,agentId:target.agentId,runId},{timeoutMs:this.requestTimeoutMs}));
+          if(result?.ok!==true||!["aborted","no-active-run"].includes(String(result.status)))throw new HouseholdDispatchError("gateway_cancel_unknown","unknown");}});}
+      catch(error){throw new HouseholdDispatchError((error as any)?.code==="cancel_target_conflict"?"cancel_target_conflict":"gateway_cancel_unconfirmed",(error as any)?.outcome==="unknown"?"unknown":"not_sent");}
+      return;
+    }
     if(operation.goalId&&current.goal?.id!==operation.goalId || operation.runId&&current.runId!==operation.runId)
       throw new HouseholdDispatchError("cancel_target_conflict","not_sent");
     if(operation.goalId){

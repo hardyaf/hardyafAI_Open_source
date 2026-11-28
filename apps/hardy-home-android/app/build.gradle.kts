@@ -11,8 +11,8 @@ android {
         applicationId = "family.hardy.home"
         minSdk = 31
         targetSdk = 37
-        versionCode = 11
-        versionName = "0.6.1-alpha"
+        versionCode = 13
+        versionName = "0.6.3-alpha"
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
         vectorDrawables.useSupportLibrary = true

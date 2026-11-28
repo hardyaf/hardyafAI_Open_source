@@ -19,7 +19,7 @@ export async function createOwnedDomainRuntime(options:{controlEnvironmentPath:s
   try{
     const artifacts=new ArtifactStore({root:environment.HARDY_HOME_ARTIFACT_ROOT??path.join(path.dirname(databasePath),"artifacts")});
     await artifacts.initialize();
-    adapter=new OpenClawAgentAdapter({url:environment.OPENCLAW_GATEWAY_URL,token:environment.OPENCLAW_GATEWAY_TOKEN,restrictedSessionCheck:options.nativeSandboxCheck,restrictedRuntimeCheck:(agentId)=>new NativeExecutionPolicies({configPath:configuration.execution.nativeConfigPath,image:configuration.execution.sandboxImage}).assertReady(agentId)});
+    adapter=new OpenClawAgentAdapter({url:environment.OPENCLAW_GATEWAY_URL,token:environment.OPENCLAW_GATEWAY_TOKEN,restrictedSessionCheck:options.nativeSandboxCheck,restrictedRuntimeCheck:(agentId)=>new NativeExecutionPolicies({configPath:configuration.execution.nativeConfigPath,image:configuration.execution.sandboxImage,workshop:configuration.execution.workshop}).assertReady(agentId)});
     runtime=new HouseholdDomainRuntime({database,adapter,artifacts,configuration,nativeSandboxCheck:options.nativeSandboxCheck,
       connectedGoogle:environment.HARDY_CREDENTIALS_CONSUMER_SOCKET ? new ConnectedGoogleClient(environment.HARDY_CREDENTIALS_CONSUMER_SOCKET) : undefined});
     runtime.configureScheduledDeliveryPolicyReader(()=>loadDomainConfiguration(options.configurationPath));

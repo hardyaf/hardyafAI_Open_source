@@ -37,7 +37,7 @@ export function registerHouseholdRuntime(api,{descriptors,createOwned,spawnNativ
         const current=await createOwned({controlEnvironmentPath:config.controlEnvironmentPath,configurationPath:config.domainConfigurationPath,
           nativeSandboxCheck:async(sessionKey,agentId)=>{
             const status=resolveSandboxRuntimeStatus({cfg:api.runtime.config.current(),sessionKey,agentId});
-            if(agentId!=='household-analysis'||status.sandboxed!==true||status.mode!=='all'||status.classificationAgentId!==agentId||status.classificationSessionKey!==sessionKey)
+            if(!['main','household-analysis'].includes(agentId)||status.sandboxed!==true||status.mode!=='all'||status.classificationAgentId!==agentId||status.classificationSessionKey!==sessionKey)
               throw unavailable('analysis_native_sandbox_required');
           }});
         if(stopped||generation!==currentGeneration){await current.close();throw unavailable('domain_runtime_stopping');}
@@ -63,7 +63,7 @@ export function registerHouseholdRuntime(api,{descriptors,createOwned,spawnNativ
     disposing=promise;return promise;
   }
   function staticCatalog(context){
-    if(context?.agentId==='household-analysis')return descriptors.filter(tool=>tool.name==='analysis.publish_output');
+    if(['household-analysis'].includes(context?.agentId))return descriptors.filter(tool=>tool.name==='analysis.publish_output');
     if(context?.agentId==='household-diagnostics')return [];
     return descriptors.filter(tool=>!["task.verify_outcome","task.finish"].includes(tool.name));
   }

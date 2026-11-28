@@ -15,7 +15,7 @@ import type { HouseholdNativeProgress } from "../src/domain.ts";
 
 const sourceText = "Fred Fixture likes blue.";
 async function fixture(activeGoal = false,nativeSandboxCheck?:(sessionKey:string,agentId:string)=>Promise<void>,
-  source: { audience?: "private" | "household"; mode?: "normal" | "brain_dump" | "diagnostic" } = {}) {
+  source: { workshop?: boolean; audience?: "private" | "household"; mode?: "normal" | "brain_dump" | "diagnostic" } = {}) {
   const directory = await mkdtemp(path.join(tmpdir(), "hardy-loaded-integration-"));
   const skills = path.join(directory, "skills"), workspace = path.join(directory, "workspace");
   await mkdir(skills); await mkdir(workspace);
@@ -55,7 +55,7 @@ async function fixture(activeGoal = false,nativeSandboxCheck?:(sessionKey:string
     continuationPending: false, parentSessionKey: null, contextTokens: null, contextBudgetStatus: null }),
     observeAnalysisChild:async (args:Parameters<OpenClawAgentAdapter["observeAnalysisChild"]>[0])=>{
       args.assertCurrent();analysisChildReads++;
-      assert.equal(args.childSessionKey,"agent:household-analysis:subagent:wake-child");
+      assert.equal(args.childSessionKey,source.workshop?"agent:main:subagent:wake-child":"agent:household-analysis:subagent:wake-child");
       assert.equal(args.runId,"analysis-wake-child-run");
       assert.equal(args.expectedSessionId,"analysis-child-session");
       assert.equal(args.parentSessionKey,"agent:main:"+conversation.sessionKey);
@@ -72,6 +72,7 @@ async function fixture(activeGoal = false,nativeSandboxCheck?:(sessionKey:string
     },
     requestDomainCapability: async () => { reads++; return { status: "ready" }; } } as unknown as OpenClawAgentAdapter;
   const artifacts = new ArtifactStore({ root: path.join(directory, "artifacts") });await artifacts.initialize();
+  if(source.workshop)configuration.execution.workshop={ownerProfileId:"alex",image:"workshop-fixture",dataRoot:path.join(directory,"workshop"),sandboxRoot:path.join(directory,"workshop/sandboxes")};
   const runtime = new HouseholdDomainRuntime({ database, adapter, artifacts, configuration, nativeSandboxCheck });
   const rootGrant = { sessionKey: conversation.sessionKey, rootSessionKey: conversation.sessionKey, sourceId: "fixture-source", parentSessionKey: null,
     agentId: "main", sessionId: "root-session", goalId: activeGoal ? "original-goal" : null, runId: "root-run", mode: source.mode ?? "normal" };
@@ -185,6 +186,22 @@ test("trusted native analysis hook admits only the exact current confined child 
   }finally{await f.close();}
 });
 
+test("a workshop child can finish without a tool call or formal goal and wake its original private owner",async()=>{
+  const f=await fixture(false,undefined,{workshop:true});try{
+    f.configuration.profiles.alex.domains=[];
+    const parentKey="agent:main:"+f.conversation.sessionKey;
+    const child={...f.rootGrant,agentId:"main",sessionKey:"agent:main:subagent:wake-child",sessionId:null,runId:"analysis-wake-child-run",parentSessionKey:f.rootGrant.sessionKey};
+    f.runtime.admission.authority.bind(child);
+    await f.runtime.getTaskContext({...f.context,sessionKey:child.sessionKey,sessionId:"analysis-child-session",runId:child.runId});
+    assert.equal(f.runtime.admission.authority.get(child.sessionKey)?.sessionId,"analysis-child-session");
+    const runId=`announce:requester-settle:main:${parentKey}:${child.runId}:yield-1`;
+    const wake={...f.context,sessionKey:parentKey,runId,inputProvenance:{kind:"inter_session",sourceTool:"subagent_settle",sourceSessionKey:child.sessionKey}};
+    f.setNativeRunId(null);await f.runtime.admitNativeTurn({},wake,wake);
+    assert.equal(f.database.submissions.get("fixture-source")!.receipt.runId,runId);
+    assert.equal((await f.runtime.getTaskContext(wake)).task.native.goalId,null);
+  }finally{await f.close();}
+});
+
 for(const sourceTool of ["subagent_settle","subagent_announce"]){
 test("only the exact native analysis "+sourceTool+" adopts a running signed goal-free source",async()=>{
   const f=await fixture();try{
@@ -221,16 +238,12 @@ test("only the exact native analysis "+sourceTool+" adopts a running signed goal
 });
 }
 
-test("no-goal automatic memory loads its skill without creating task state and saves a grounded source", async () => {
+test("first-call memory works without a guide or task state and saves a grounded source", async () => {
   const f = await fixture(); try {
-    await assert.rejects(() => f.runtime.execute("household_memory_status", { scope: "personal" }, f.context), /loaded_contract_required/);
-    const first=await f.guard();assert.equal(first.allow,false);assert.match(first.reason??"",/loaded automatically/);assert.match(first.reason??"",/MEMORY-CONTRACT-V1/);
-    assert.equal(f.reads(), 0,"Instructions precede the first business call");
-    assert.equal(f.revision(), 0);
-    assert.equal(f.sql.prepare("SELECT count(*) AS n FROM conversation_checkpoints").get()!.n, 0);
-    assert.equal((await f.guard()).allow, true);
-    await f.runtime.execute("household_memory_status", { scope: "personal" }, f.context);
-    assert.equal(f.reads(), 1);
+    assert.equal((await f.guard()).allow,true);
+    await f.runtime.execute("household_memory_status",{scope:"personal"},f.context);
+    assert.equal(f.reads(),1);assert.equal(f.revision(),0);
+    assert.equal(f.sql.prepare("SELECT count(*) AS n FROM conversation_checkpoints").get()!.n,0);
     const saved = await f.runtime.execute("household_memory_source_save", { operationId: "remember-fact-1", scope: "personal", title: "Fred preference", text: sourceText,
       sourceIds: ["user:fixture-source"], certainty: "fact" }, f.context) as { result: { source: { certainty: string } } };
     assert.equal(saved.result.source.certainty, "confirmed");
@@ -249,26 +262,24 @@ test("active root and native child/successor restore only actually injected cont
     assert.equal("loadedContracts" in prompt, false, "Internal marker is not model context");
     assert.match(prompt.prependSystemContext, /MEMORY-CONTRACT-V1/);
     assert.equal((await f.runtime.taskGuard(child, { toolName: "household_memory_status", params: { scope: "personal" } }, childContext)).allow, true);
-    assert.equal(f.runtime.admission.authority.contracts.list(childGrant, child.task.assertCurrent).length, 1);
+    assert.equal(f.runtime.admission.authority.contracts.list(childGrant, child.task.assertCurrent).length, 0);
     const successor = { ...f.rootGrant, runId: "root-successor" };
     f.runtime.admission.authority.bind(successor);
     assert.equal(f.runtime.admission.authority.contracts.list(successor, () => {}).length, 0);
     const next = await f.runtime.getTaskContext({ ...f.context, runId: successor.runId });
     await f.runtime.taskPrompt(next);
-    assert.equal(f.runtime.admission.authority.contracts.list(successor, next.task.assertCurrent).length, 1);
+    assert.equal(f.runtime.admission.authority.contracts.list(successor, next.task.assertCurrent).length, 0);
   } finally { await f.close(); }
 });
 
-test("contract changes or revoked device prevent both the guard and final pre-effect write", async () => {
+test("guide edits do not revoke work; revoked device still prevents guard and final effect", async () => {
   const f = await fixture(); try {
     await f.select(); const retained = await f.binding();
     assert.equal((await f.guard()).allow, true);
     await writeFile(path.join(f.skills, "memory.md"), "MEMORY-CONTRACT-V2: changed policy must be loaded again.");
-    await assert.rejects(() => f.runtime.execute("household_memory_source_save", { operationId: "blocked-fact-1", scope: "personal", title: "Fred", text: sourceText,
-      sourceIds: ["user:fixture-source"], certainty: "fact" }, f.context), /loaded_contract_required/);
-    const changed=await f.guard();assert.equal(changed.allow,false);assert.match(changed.reason??"",/MEMORY-CONTRACT-V2/);
-    assert.equal(f.sql.prepare("SELECT count(*) AS n FROM domain_effects").get()!.n, 0, "Automatic loading itself performs no business effects");
-    assert.equal((await f.guard()).allow, true);
+    const changed=await f.guard();assert.equal(changed.allow,true);
+    await f.runtime.execute("household_memory_source_save",{operationId:"guide-change-1",scope:"personal",title:"Fred",text:sourceText,sourceIds:["user:fixture-source"],certainty:"fact"},f.context);
+    assert.equal(f.sql.prepare("SELECT count(*) AS n FROM domain_effects").get()!.n,1);
     f.sql.prepare("UPDATE devices SET status='revoked' WHERE id='fixture-device'").run();
     await assert.rejects(() => f.runtime.taskGuard(retained, { toolName: "household_memory_status", params: { scope: "personal" } }, f.context), /domain_authority_revoked/);
     await assert.rejects(() => f.runtime.execute("household_memory_status", { scope: "personal" }, f.context), /domain_authority_revoked/);
@@ -282,29 +293,29 @@ test("trusted first child SID rehydrates only its exact current loaded contracts
     f.runtime.admission.authority.bind(childGrant);
     const childContext = { ...f.context, sessionKey: childGrant.sessionKey, sessionId: "first-child-generation", runId: childGrant.runId, toolCallId: "tool_call:first:household_memory_status:1" };
     const child = await f.runtime.getTaskContext(childContext);await f.runtime.taskPrompt(child);
-    assert.equal(f.runtime.admission.authority.contracts.list(childGrant, child.task.assertCurrent).length, 1);
+    assert.equal(f.runtime.admission.authority.contracts.list(childGrant, child.task.assertCurrent).length, 0);
     const event = { toolName: "household_memory_status", toolCallId: childContext.toolCallId, runId: childContext.runId, params: { scope: "personal" } };
     assert.equal((await f.runtime.taskGuard(child, event, childContext)).allow, true);
     await f.runtime.bindNativeInvocation(child, event, childContext);
     const bound = f.runtime.admission.authority.get(childGrant.sessionKey)!;
     assert.equal(bound.sessionId, childContext.sessionId);
-    assert.equal(f.runtime.admission.authority.contracts.list(bound, child.task.assertCurrent).length, 1);
+    assert.equal(f.runtime.admission.authority.contracts.list(bound, child.task.assertCurrent).length, 0);
     await f.runtime.executeNativeInvocation(event.toolName, event.params, childContext);
     assert.equal(f.reads(), 1, "Actual typed V2 execution still has its loaded contract after SID binding");
     await assert.rejects(() => f.runtime.bindNativeInvocation(child, { ...event, toolCallId: "wrong-generation-call" }, { ...childContext, sessionId: "unrelated-child-generation", toolCallId: "wrong-generation-call" }), /trusted_native_invocation_required/);
   } finally { await f.close(); }
 });
 
-test("an oversized selected contract is not marked loaded by bounded prompt restoration", async () => {
+test("selected large guidance restores without a separate 24K instruction ceiling", async () => {
   const f = await fixture(true); try {
     await writeFile(path.join(f.skills, "memory.md"), "OVERSIZED-CONTRACT " + "x".repeat(25000));
     await f.select();
     const successor = { ...f.rootGrant, runId: "root-large-successor" }; f.runtime.admission.authority.bind(successor);
     const next = await f.runtime.getTaskContext({ ...f.context, runId: successor.runId });
     const prompt = await f.runtime.taskPrompt(next);
-    assert.match(prompt.prependSystemContext, /load its complete instructions/);
+    assert.match(prompt.prependSystemContext, /OVERSIZED-CONTRACT/);assert.ok(prompt.prependSystemContext.length>25000);
     assert.equal(f.runtime.admission.authority.contracts.list(successor, next.task.assertCurrent).length, 0);
-    assert.equal((await f.runtime.taskGuard(next, { toolName: "household_memory_status", params: { scope: "personal" } }, {})).allow, false);
+    assert.equal((await f.runtime.taskGuard(next, { toolName: "household_memory_status", params: { scope: "personal" } }, {})).allow, true);
   } finally { await f.close(); }
 });
 
@@ -316,7 +327,7 @@ test("deduplicated shared instruction text restores both exact authorized domain
     const successor = { ...f.rootGrant, runId: "root-dedup-successor" }; f.runtime.admission.authority.bind(successor);
     const next = await f.runtime.getTaskContext({ ...f.context, runId: successor.runId }); const prompt = await f.runtime.taskPrompt(next);
     assert.equal(prompt.prependSystemContext.split(shared).length - 1, 1);
-    assert.deepEqual(f.runtime.admission.authority.contracts.list(successor, next.task.assertCurrent).map(x => x.domainId).sort(), ["documents", "memory"]);
+    assert.deepEqual(f.runtime.admission.authority.contracts.list(successor, next.task.assertCurrent), []);
   } finally { await f.close(); }
 });
 
@@ -326,6 +337,15 @@ test("discovery, owning effect recovery and task metadata remain available befor
       assert.equal((await f.runtime.taskGuard(await f.binding(), { toolName, params }, {})).allow, true);
     assert.equal(f.runtime.admission.authority.contracts.list(f.rootGrant, () => {}).length, 0);
   } finally { await f.close(); }
+});
+
+test('a missing guide does not disable a currently authorized first business call',async()=>{
+ const f=await fixture();try{
+  await rm(path.join(f.skills,'memory.md'));
+  assert.equal((await f.guard()).allow,true);
+  await f.runtime.execute('household_memory_status',{scope:'personal'},f.context);assert.equal(f.reads(),1);
+  const selected=await f.select() as any;assert.match(selected.contexts[0].instructions,/Optional guide unavailable/);
+ }finally{await f.close();}
 });
 
 test("active-goal business effects ignore cosmetic progress while native continuation uses generated evidence state", async () => {
@@ -343,8 +363,8 @@ test("active-goal business effects ignore cosmetic progress while native continu
     const continuation = await f.runtime.taskGuard(binding, { toolName: "progress_card", params: { plan: [{ step: "Invented completed outcome", status: "completed" }], sessionKey: "another-task" } }, {});
     assert.equal(continuation.allow, true);
     const handoff = (await f.runtime.tasks.snapshot(binding)).handoff!;
-    assert.deepEqual((continuation as any).params, { plan: projectNativeProgressPlan(handoff) });
-    assert.ok((continuation as any).params.plan.some((step: { status: string }) => step.status !== "completed"));
+    assert.equal((continuation as any).params,undefined);
+    assert.equal(handoff.outcomes.length,1);
     const childGrant = { ...f.rootGrant, sessionKey: "agent:main:subagent:phase", parentSessionKey: f.rootGrant.sessionKey, sessionId: "phase-session", runId: "phase-run" };
     f.runtime.admission.authority.bind(childGrant);
     const childContext = { ...f.context, sessionKey: childGrant.sessionKey, sessionId: childGrant.sessionId, runId: childGrant.runId };
@@ -406,7 +426,7 @@ test("committed owner receipts associate automatically and complete the exact na
     assert.equal(f.nativeMutations[0].expectedSessionId, "root-session"); assert.equal(f.nativeMutations[0].operation.action, "complete");
     assert.ok(f.publishedPlans.length > 0);
     const finalizeBinding = await f.runtime.getTaskContext({ ...f.context, completionRecovery: true });
-    assert.equal((await f.runtime.taskFinalize(finalizeBinding)).action, "finalize");
+    assert.equal(await f.runtime.taskFinalize(finalizeBinding),undefined);
     await assert.rejects(() => f.runtime.execute("household_memory_source_save", { scope: "personal", title: "No extra work", text: sourceText, certainty: "fact" }, f.context), /source_goal_not_active/);
   } finally { await f.close(); }
 });
@@ -466,11 +486,9 @@ test("an unplanned native progress request stays unfinished without becoming com
   const f = await fixture(true); try {
     const binding = await f.binding();
     const empty = await f.runtime.taskGuard(binding, { toolName: "progress_card", params: {} }, {});
-    assert.equal(empty.allow, true); assert.ok((empty as any).params.plan.length > 0);
-    assert.ok((empty as any).params.plan.some((step: any) => step.status === "in_progress"));
-    assert.ok((empty as any).params.plan.every((step: any) => step.status !== "completed"));
-    const proposed = await f.runtime.taskGuard(binding, { toolName: "progress_card", params: { plan: [{ step: "Claimed finished work", status: "completed" }] } }, {});
-    assert.equal(proposed.allow, true); assert.ok((proposed as any).params.plan.every((step: any) => step.status !== "completed"));
+    assert.equal(empty.allow,true);assert.equal((empty as any).params,undefined);
+    const proposed=await f.runtime.taskGuard(binding,{toolName:"progress_card",params:{plan:[{step:"User-chosen presentation",status:"completed"}]}},{});
+    assert.equal(proposed.allow,true);assert.equal((proposed as any).params,undefined);
     assert.equal(await f.runtime.tasks.flow.canComplete(binding.task), false); assert.equal(f.revision(), 0);
     assert.equal(f.sql.prepare("SELECT count(*) AS n FROM conversation_checkpoints").get()!.n, 0);
   } finally { await f.close(); }

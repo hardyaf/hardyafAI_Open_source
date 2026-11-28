@@ -1,16 +1,18 @@
+import {googleWriteInput} from "../domains/google/write-input.ts";
 import { googleMessageReadInput } from "../domains/google/message-read.ts";
 import { createHash, randomBytes, timingSafeEqual } from "node:crypto";
-import { ConnectionsError, fields, object, operation, origin, presets, redirect, string } from "./contracts.ts";
-import type { ConnectionRecord, ConnectionsStore, ConnectionVault, GoogleAuthorization, GoogleGrant, GooglePreset, GoogleProvider, GoogleReadOperation } from "./contracts.ts";
+import { ConnectionsError, fields, object, operation, origin, presets, redirect, string, googleService, googleAccess, readScopes, writeScopes } from "./contracts.ts";
+import type { ConnectionRecord, ConnectionsStore, ConnectionVault, GoogleAuthorization, GoogleGrant, GooglePreset, GoogleProvider, GoogleReadOperation, GoogleWriteOperation } from "./contracts.ts";
 
 type Flow = {
-  id: string; owner: string; connectionId: string; label: string; preset: GooglePreset; createdAt: string;
+  operationId:string; targetFingerprint?:string; id: string; owner: string; connectionId: string; label: string; preset: GooglePreset; createdAt: string;
   authorization: GoogleAuthorization; authorizationUrl: string; expiresAt: number; clientSecretId: string; assertCurrent: () => void;
   state: "ready" | "exchanging" | "saving" | "failed" | "complete"; grant?: GoogleGrant;
 };
-const publicRecord = ({ secretId, ownerProfileId, ...value }: ConnectionRecord) => { void secretId; void ownerProfileId; return value; };
+const publicRecord = ({ secretId, ownerProfileId, ...value }: ConnectionRecord) => { void secretId; void ownerProfileId; return {...value,...(value.kind==="google"?{service:googleService(value.preset),access:googleAccess(value)}:{})}; };
 const equal = (left: string, right: string) => { const a = Buffer.from(left), b = Buffer.from(right); return a.length === b.length && timingSafeEqual(a, b); };
 const connectionId = (owner: string, id: string) => "connection-" + createHash("sha256").update(owner + "\0" + id).digest("hex").slice(0, 32);
+const authorityFingerprint=(record:ConnectionRecord)=>createHash('sha256').update(JSON.stringify([record.ownerProfileId,record.account,record.accountId,record.preset,record.scopes,record.secretId,record.status])).digest('hex');
 
 /** Runs only inside the isolated credential service. Secret values never enter native tool results. */
 export class ConnectionsService {
@@ -80,16 +82,21 @@ export class ConnectionsService {
     });
   }
   async startGoogle(owner: string, input: unknown, current: () => void) {
-    const body = object(input); fields(body, ["operationId", "label", "expectedEmail", "preset"]);
-    const id = connectionId(owner, operation(body.operationId)), label = string(body.label, 120), expectedEmail = string(body.expectedEmail, 320).toLowerCase();
+    const body = object(input); fields(body, ["operationId", "label", "expectedEmail", "preset", "connectionId"]);
+    const requestOperation=operation(body.operationId), label = string(body.label, 120), expectedEmail = string(body.expectedEmail, 320).toLowerCase();
     if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(expectedEmail) || typeof body.preset !== "string" || !Object.hasOwn(presets, body.preset))
       throw new ConnectionsError("invalid_google_request", 400);
     const preset = body.preset as GooglePreset;
+    const matches=this.#store.list(owner).filter(row=>row.kind==='google'&&row.status!=='disconnected'&&row.account?.toLowerCase()===expectedEmail&&googleService(row.preset)===googleService(preset));
+    const target=body.connectionId!==undefined?this.#store.get(owner,string(body.connectionId,128)):matches.length===1?matches[0]:undefined;
+    if(body.connectionId!==undefined&&(!target||target.kind!=='google'||target.account?.toLowerCase()!==expectedEmail||googleService(target.preset)!==googleService(preset)))throw new ConnectionsError('connection_identity_mismatch',403);
+    if(body.connectionId===undefined&&matches.length>1)throw new ConnectionsError('google_connection_ambiguous',409);
+    const id=target?.id??connectionId(owner,requestOperation);
     return this.#owned(owner, id, current, async () => {
       for (const [key, flow] of this.#flows) if (flow.expiresAt < this.#now() && flow.state !== "saving") this.#flows.delete(key);
-      const existing = [...this.#flows.values()].find(flow => flow.owner === owner && flow.connectionId === id);
+      const existing = [...this.#flows.values()].find(flow => flow.owner === owner && flow.operationId === requestOperation);
       if (existing) {
-        if (existing.label !== label || existing.preset !== preset || existing.authorization.expectedEmail !== expectedEmail)
+        if (existing.connectionId!==id || existing.label !== label || existing.preset !== preset || existing.authorization.expectedEmail !== expectedEmail)
           throw new ConnectionsError("connection_operation_conflict", 409);
         if (existing.state === "failed") throw new ConnectionsError("google_authorization_restart_required", 409);
         return { flowId: existing.id, authorizationUrl: existing.authorizationUrl, expiresAt: new Date(existing.expiresAt).toISOString() };
@@ -101,7 +108,7 @@ export class ConnectionsService {
         state: randomBytes(32).toString("base64url"), verifier: randomBytes(48).toString("base64url"), nonce: randomBytes(32).toString("base64url"),
         scopes: [...presets[preset]], expectedEmail };
       const authorizationUrl = await this.#google.authorizationUrl(authorization), flowId = randomBytes(24).toString("base64url"), expiresAt = this.#now() + 10 * 60_000;
-      this.#flows.set(flowId, { id: flowId, owner, connectionId: id, label, preset, authorization, authorizationUrl, expiresAt, clientSecretId: client.secretId, assertCurrent: current, createdAt: new Date(this.#now()).toISOString(), state: "ready" });
+      this.#flows.set(flowId, { operationId:requestOperation,...(target?{targetFingerprint:authorityFingerprint(target)}:{}),id: flowId, owner, connectionId: id, label, preset, authorization, authorizationUrl, expiresAt, clientSecretId: client.secretId, assertCurrent: current, createdAt: target?.createdAt??new Date(this.#now()).toISOString(), state: "ready" });
       return { flowId, authorizationUrl, expiresAt: new Date(expiresAt).toISOString() };
     });
   }
@@ -112,10 +119,13 @@ export class ConnectionsService {
       const flow = this.#flows.get(flowId);
       if (!flow || flow.owner !== owner || flow.expiresAt < this.#now() && flow.state !== "saving" && flow.state !== "complete")
         throw new ConnectionsError("google_authorization_expired", 409);
+      return this.#owned(owner,flow.connectionId,current,async()=>{
       if (flow.state === "complete") return { connection: publicRecord(this.#store.get(owner, flow.connectionId)!) };
       if (flow.state === "failed") throw new ConnectionsError("google_authorization_restart_required", 409);
       if (flow.state === "exchanging") throw new ConnectionsError("google_authorization_outcome_unknown", 409, "unknown");
       if (flow.state === "ready") {
+        const prior=this.#store.get(owner,flow.connectionId);
+        if(flow.targetFingerprint&&(!prior||authorityFingerprint(prior)!==flow.targetFingerprint))throw new ConnectionsError('google_connection_changed',409);
         let url: URL;
         try { url = new URL(callback); } catch { throw new ConnectionsError("invalid_google_callback", 400); }
         const expected = new URL(flow.authorization.redirectUri);
@@ -139,6 +149,7 @@ export class ConnectionsService {
       const saved = await this.#commit(record, credential, current);
       flow.grant = undefined; flow.authorization.clientSecret = ""; flow.authorization.verifier = ""; flow.state = "complete";
       return { connection: publicRecord(saved) };
+      });
     });
   }
   async #commit(record: ConnectionRecord, value: string, current: () => void): Promise<ConnectionRecord> {
@@ -156,6 +167,7 @@ export class ConnectionsService {
       const committed = { ...record, secretId: receipt.secretId };
       this.#store.save(committed); return committed;
     } catch (error) {
+      if(prior&&!allowCreate&&(error as {outcome?:string}).outcome==="not_sent"){current();this.#store.save(prior);}
       if (allowCreate && (error as {outcome?: string}).outcome === "not_sent") {
         current(); this.#store.save({ ...pending, status: "disconnected" });
       }
@@ -175,14 +187,29 @@ export class ConnectionsService {
       current(); this.#store.save(updated); return { connection: publicRecord(updated) };
     });
   }
-  async readDefaultGoogleEmail(owner: string, configuredAccount: string, operation: GoogleReadOperation, input: unknown, current: () => void) {
+  async setGoogleReadOnly(owner:string,input:unknown,current:()=>void){
+    const body=object(input);fields(body,['connectionId','operationId']);operation(body.operationId);const id=string(body.connectionId,128);
+    return this.#owned(owner,id,current,async()=>{
+      const prior=this.#store.get(owner,id);if(!prior||prior.kind!=='google'||prior.status!=='connected')throw new ConnectionsError('connection_not_available',409);
+      const preset:GooglePreset=googleService(prior.preset)==='gmail'?'gmail_read':'calendar_read';
+      const next={...prior,preset,updatedAt:new Date(this.#now()).toISOString()};current();this.#store.save(next);return {connection:publicRecord(next)};
+    });
+  }
+  async readDefaultGoogleEmail(owner:string,account:string,operation:GoogleReadOperation,input:unknown,current:()=>void,signal?:AbortSignal){
+    if(!Object.hasOwn(readScopes,operation)||!operation.startsWith('gmail.'))throw new ConnectionsError('connection_operation_not_allowed',403);
+    return this.readGoogle(owner,this.#defaultGoogleEmail(owner,account,current),operation,input,current,signal);
+  }
+  async writeDefaultGoogleEmail(owner:string,account:string,operation:GoogleWriteOperation,input:unknown,current:()=>void,signal?:AbortSignal){
+    if(!writeScopes(operation).length||!operation.startsWith('gmail.'))throw new ConnectionsError('connection_operation_not_allowed',403);
+    return this.writeGoogle(owner,this.#defaultGoogleEmail(owner,account,current),operation,input,current,signal);
+  }
+  #defaultGoogleEmail(owner:string,configuredAccount:string,current:()=>void):string{
     this.assertSecure(); current();
-    if (!["gmail.search", "gmail.get"].includes(operation)) throw new ConnectionsError("connection_operation_not_allowed", 403);
     const account = typeof configuredAccount === "string" ? configuredAccount.trim().toLowerCase() : "";
     if (!account || account.length > 320 || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(account))
       throw new ConnectionsError("google_default_mailbox_not_configured", 409);
     const matches = this.#store.list(owner).filter(item => item.ownerProfileId === owner && item.kind === "google" &&
-      item.preset === "gmail_read" && typeof item.account === "string" && item.account.trim().toLowerCase() === account);
+      googleService(item.preset) === "gmail" && typeof item.account === "string" && item.account.trim().toLowerCase() === account);
     current();
     // A refresh temporarily marks its binding unknown. It must not silently make
     // a different same-account grant become the default. Disconnected history is retained.
@@ -192,22 +219,22 @@ export class ConnectionsService {
     if (!selected) throw new ConnectionsError(matches.length ? "google_default_mailbox_unavailable" : "google_default_mailbox_not_connected", 409);
     if (selected.status === "needs_reauthorization") throw new ConnectionsError("google_default_mailbox_needs_reauthorization", 409);
     if (selected.status !== "connected") throw new ConnectionsError("google_default_mailbox_unavailable", 409);
-    if (!presets.gmail_read.some(scope => selected.scopes.includes(scope))) throw new ConnectionsError("connection_operation_not_allowed", 403);
+    if (!readScopes["gmail.get"].some(scope => selected.scopes.includes(scope))) throw new ConnectionsError("connection_operation_not_allowed", 403);
     current();
-    return this.readGoogle(owner, selected.id, operation, input, current);
+    return selected.id;
   }
-  async readGoogle(owner: string, id: string, operation: GoogleReadOperation, input: unknown, current: () => void) {
+  async readGoogle(owner:string,id:string,operation:GoogleReadOperation,input:unknown,current:()=>void,signal?:AbortSignal){return this.#executeGoogle(owner,id,operation,input,current,signal,false);}
+  async writeGoogle(owner:string,id:string,operation:GoogleWriteOperation,input:unknown,current:()=>void,signal?:AbortSignal){return this.#executeGoogle(owner,id,operation,input,current,signal,true);}
+  async #executeGoogle(owner:string,id:string,operation:GoogleReadOperation|GoogleWriteOperation,input:unknown,current:()=>void,signal:AbortSignal|undefined,write:boolean){
     return this.#owned(owner, id, current, async () => {
       const record = this.#store.get(owner, id);
       if (!record || record.kind !== "google" || record.status !== "connected") throw new ConnectionsError("connection_not_available", 409);
-      const required: Record<GoogleReadOperation, string[]> = {
-        "gmail.search": presets.gmail_read, "gmail.get": presets.gmail_read,
-        "calendar.list": [...presets.calendar_read, ...presets.household_calendar_manage],
-        "calendar.get": [...presets.calendar_read, ...presets.household_calendar_manage],
-      };
-      if (!Object.hasOwn(required, operation) || !required[operation].some(scope => record.scopes.includes(scope)))
-        throw new ConnectionsError("connection_operation_not_allowed", 403);
-      const readInput = operation === "gmail.get" ? googleMessageReadInput(input) : input;
+      const required=write?writeScopes(operation as GoogleWriteOperation):readScopes[operation as GoogleReadOperation];
+      if(!required?.length||!required.some(scope=>record.scopes.includes(scope)))throw new ConnectionsError('connection_operation_not_allowed',403);
+      if(write&&googleAccess(record)!=='write')throw new ConnectionsError('connection_operation_not_allowed',403);
+      if(write&&(!record.account||!record.accountId))throw new ConnectionsError('connection_identity_mismatch',403);
+      if(write&&!this.#google.write)throw new ConnectionsError('connection_operation_unavailable',503);
+      const readInput=write?googleWriteInput(operation as GoogleWriteOperation,input):operation==='gmail.get'?googleMessageReadInput(input):input;
       if (operation === "gmail.get" && (!record.account || !record.accountId)) throw new ConnectionsError("connection_identity_mismatch", 403);
       current(); const previous = await this.#vault.read(record.secretId); current();
       const grant = object(JSON.parse(previous));
@@ -226,8 +253,8 @@ export class ConnectionsService {
         await this.#vault.replace(record.secretId, previous, JSON.stringify({...grant, refreshToken: refreshed.refreshToken})); current();
       }
       this.#store.save({...record, status: "connected", updatedAt: new Date(this.#now()).toISOString()}); current();
-      const context = operation === "gmail.get" ? {messageScope: createHash("sha256").update(JSON.stringify({owner, connectionId: id, account: record.account!.trim().toLowerCase(), accountId: record.accountId})).digest("hex")} : undefined;
-      const result = await this.#google.read(refreshed.accessToken, operation, readInput, context); current();
+      const context = {...(signal?{signal}:{}),messageScope: createHash("sha256").update(JSON.stringify({owner, connectionId: id, account: record.account!.trim().toLowerCase(), accountId: record.accountId})).digest("hex"),...(operation==="calendar.find_operation"?{operationKey:createHash("sha256").update(JSON.stringify([owner,id,object(readInput).operationId])).digest("hex")}: {})};
+      const result = write?await this.#google.write!(refreshed.accessToken,operation as GoogleWriteOperation,readInput,{from:record.account!,operationKey:createHash("sha256").update(JSON.stringify([owner,id,object(readInput).operationId])).digest("hex"),...(signal?{signal}:{})}):await this.#google.read(refreshed.accessToken, operation as GoogleReadOperation, readInput, context); current();
       return {connectionId: id, account: record.account, operation, untrusted: true, result};
     });
   }

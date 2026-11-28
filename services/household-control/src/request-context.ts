@@ -86,6 +86,10 @@ export class ExecutionAuthorityRepository {
     const row = this.db.prepare("SELECT * FROM native_execution_grants WHERE native_session_key=?").get(sessionKey) as Record<string,unknown>|undefined;
     return row ? {sessionKey:String(row.native_session_key),rootSessionKey:String(row.root_session_key),sourceId:String(row.root_submission_id),parentSessionKey:row.parent_session_key as string|null,agentId:String(row.agent_id),sessionId:row.native_session_id as string|null,goalId:row.native_goal_id as string|null,runId:row.native_run_id as string|null,mode:row.mode as ExecutionGrant["mode"]} : null;
   }
+  childrenForSource(rootSessionKey:string,sourceId:string):ExecutionGrant[]{
+    const rows=this.db.prepare("SELECT native_session_key FROM native_execution_grants WHERE root_session_key=? AND root_submission_id=? AND parent_session_key IS NOT NULL ORDER BY native_session_key").all(rootSessionKey,sourceId) as Array<{native_session_key:string}>;
+    return rows.map(row=>this.get(row.native_session_key)).filter((value):value is ExecutionGrant=>value!==null);
+  }
   bind(value:ExecutionGrant) {
     const previous=this.get(value.sessionKey);
     // A diagnostic goal is sticky across answers, native continuations and children.

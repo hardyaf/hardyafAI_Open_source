@@ -58,7 +58,7 @@ test("only an explicit trusted system policy can create its exact native objecti
   const f=fixture(binding=>{binding.task.native.goalId=null;binding.task.native.goalStatus=null;binding.task.native.objective=null;binding.task.source.human=false;});
   f.options.allowGoalCreation=()=>true;
   const prompt=await f.app.prompt(f.binding),data=JSON.parse(prompt.appendContext.slice(prompt.appendContext.indexOf("\n")+1));
-  assert.equal(data.goalStartAvailable,true);assert.ok(prompt.toolsAllow?.includes("create_goal"));assert.match(prompt.prependSystemContext,/explicit trusted system goal.creation policy/);
+  assert.equal(data.goalStartAvailable,true);assert.ok(prompt.toolsAllow?.includes("create_goal"));assert.match(prompt.prependSystemContext,/A native goal is available when it helps/);
   for(const objective of ["current request","Model text cannot replace the real source"]){
     const decision=await f.app.guard(f.binding,{toolName:"create_goal",params:{objective}});
     assert.equal(decision.allow,true);assert.deepEqual((decision as any).params,{objective:f.binding.task.source.text});

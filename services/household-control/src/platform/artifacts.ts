@@ -127,9 +127,9 @@ export class ArtifactStore {
       if (!stat.isDirectory() || stat.isSymbolicLink()) throw new PlatformError("artifact_storage_invalid", 503);
       const metadata = JSON.parse((await readRegular(path.join(directory, "manifest.json"), 16_384)).toString("utf8")) as ArtifactMetadata;
       validateScope(metadata);
-      if (metadata.id !== id || metadata.schemaVersion !== 1 || !mimeTypes.has(metadata.mimeType) ||
+      if (metadata.id !== id || metadata.schemaVersion !== 1 || !(mimeTypes.has(metadata.mimeType) || metadata.kind === "output" && metadata.mimeType === "application/octet-stream") ||
         !/^[0-9a-f]{64}$/.test(metadata.sha256) || !Number.isSafeInteger(metadata.byteLength) ||
-        metadata.byteLength < 0 || metadata.byteLength > this.maxBytes ||
+        metadata.byteLength < 0 || metadata.kind !== "output" && metadata.byteLength > this.maxBytes ||
         !["input", "output", "evidence"].includes(metadata.kind) || !safeFilename(metadata.filename) ||
         !Number.isFinite(Date.parse(metadata.createdAt))) throw new PlatformError("artifact_storage_invalid", 503);
       return metadata;
@@ -151,6 +151,70 @@ export class ArtifactStore {
     const bytes = await readRegular(path.join(this.objectPath(id), "content"), this.maxBytes);
     if (bytes.length !== metadata.byteLength || hash(bytes) !== metadata.sha256) throw new PlatformError("artifact_integrity_failed", 503);
     return { metadata, bytes };
+  }
+
+  /** Stream verified downloads without imposing the model-input buffer limit on generated files. */
+  async openDownload(id: string, principal: ArtifactPrincipal, assertCurrent?: () => void) {
+    const metadata = await this.get(id, principal);
+    const handle = await open(path.join(this.objectPath(id), "content"), constants.O_RDONLY | noFollow);
+    try {
+      const info = await handle.stat(), digest = createHash("sha256");
+      if (!info.isFile() || info.nlink !== 1 || info.size !== metadata.byteLength) throw new PlatformError("artifact_integrity_failed", 503);
+      for await (const chunk of handle.createReadStream({ autoClose: false })) { assertCurrent?.(); digest.update(chunk); }
+      if (digest.digest("hex") !== metadata.sha256) throw new PlatformError("artifact_integrity_failed", 503);
+      return { metadata, stream: handle.createReadStream({ start: 0, autoClose: true }) };
+    } catch (error) { await handle.close(); throw error; }
+  }
+
+  async verify(id: string, principal: ArtifactPrincipal, assertCurrent?: () => void): Promise<ArtifactMetadata> {
+    const result = await this.openDownload(id, principal, assertCurrent);
+    result.stream.destroy();
+    return result.metadata;
+  }
+
+  /** Trusted native file capture reuses this store and its scope; no publishing tool or file-size cap. */
+  async importOutput(scope: ArtifactScope, principal: ArtifactPrincipal,
+    input: { filename: string; mimeType: string; idempotencyKey: string },
+    capture: (destination: string) => Promise<void>, assertCurrent: () => void): Promise<ArtifactMetadata> {
+    validateScope(scope); authorize(scope, principal, true); assertCurrent();
+    if (!this.root) throw new PlatformError("artifact_storage_unavailable", 503);
+    if (!safeFilename(input.filename) || !input.idempotencyKey || input.idempotencyKey.length > 200 ||
+      !(mimeTypes.has(input.mimeType) || input.mimeType === "application/octet-stream")) throw new PlatformError("artifact_operation_invalid", 400);
+    const stage = path.join(this.root, "staging", randomUUID()); await privateDirectory(stage);
+    const content = path.join(stage, "content");
+    try {
+      await capture(content); assertCurrent();
+      const handle = await open(content, constants.O_RDONLY | noFollow);
+      let byteLength: number, sha256: string;
+      try {
+        const stat = await handle.stat();
+        if (!stat.isFile() || stat.nlink !== 1) throw new PlatformError("artifact_storage_invalid", 503);
+        await handle.chmod(0o600); byteLength = stat.size;
+        const digest = createHash("sha256");
+        for await (const chunk of handle.createReadStream({ autoClose: false })) digest.update(chunk);
+        sha256 = digest.digest("hex");
+        await handle.sync();
+      } finally { await handle.close(); }
+      assertCurrent();
+      const id = "artifact-" + hash(JSON.stringify([scope.ownerProfileId, scope.conversationId, scope.taskId, input.idempotencyKey, sha256]));
+      const metadata: ArtifactMetadata = { ...scope, id, schemaVersion: 1, filename: input.filename, mimeType: input.mimeType,
+        kind: "output", byteLength, sha256, createdAt: new Date().toISOString() };
+      const manifest = await open(path.join(stage, "manifest.json"), constants.O_WRONLY | constants.O_CREAT | constants.O_EXCL | noFollow, 0o600);
+      try { await manifest.writeFile(JSON.stringify(metadata)); await manifest.sync(); } finally { await manifest.close(); }
+      assertCurrent();
+      try { await rename(stage, this.objectPath(id)); }
+      catch (error) {
+        if (!["EEXIST", "ENOTEMPTY", "EPERM"].includes((error as NodeJS.ErrnoException).code ?? "")) throw error;
+        const existing = await this.get(id, principal);
+        if (existing.sha256 !== sha256 || existing.filename !== metadata.filename || existing.mimeType !== metadata.mimeType) throw new PlatformError("artifact_operation_conflict", 409);
+        return existing;
+      }
+      const directory = await open(path.join(this.root, "objects"), constants.O_RDONLY);
+      try { await directory.sync(); } finally { await directory.close(); }
+      return metadata;
+    } finally {
+      await unlink(content).catch(() => {}); await unlink(path.join(stage, "manifest.json")).catch(() => {}); await rmdir(stage).catch(() => {});
+    }
   }
 
   async put(scope: ArtifactScope, principal: ArtifactPrincipal, input: ArtifactInput): Promise<ArtifactMetadata> {
@@ -215,17 +279,14 @@ export class ArtifactStore {
     const limit = Math.min(filter.limit ?? 100, 200);
     const entries = await opendir(path.join(this.root, "objects"));
     const items: ArtifactMetadata[] = [];
-    let scanned = 0;
-    let truncated = false;
     for await (const entry of entries) {
-      if (++scanned > 5000) { truncated = true; break; }
       if (!entry.isDirectory() || !idPattern.test(entry.name)) continue;
       const metadata = await this.metadata(entry.name);
       try { authorize(metadata, principal); } catch { continue; }
       if (metadata.conversationId === filter.conversationId && (!filter.taskId || metadata.taskId === filter.taskId)) items.push(metadata);
     }
     items.sort((left, right) => right.createdAt.localeCompare(left.createdAt) || left.id.localeCompare(right.id));
-    return { items: items.slice(0, limit), truncated: truncated || items.length > limit };
+    return { items: items.slice(0, limit), truncated: items.length > limit };
   }
 }
 

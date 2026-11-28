@@ -44,9 +44,9 @@ test("continuations bind message identity projected content and trusted connecti
  assert.throws(()=>project({...value,id:"wrong-message"},next),/google_message_identity_mismatch/);
  assert.throws(()=>project(value,{messageId:"fixture-message",bodyWindow:{offset:1000,maxChars:2,version:first.bodyWindow.version}}),/google_message_window_out_of_range/);
 });
-test("default large bodies advertise continuation beyond the existing per-read transport projection bound",()=>{
+test("full bodies have no implicit 60000-character window",()=>{
  const value=message("😀".repeat(60_005)),first=project(value,{messageId:"fixture-message"});
- assert.equal(Array.from(first.body).length,60_000);assert.equal(first.bodyTruncated,true);assert.equal(first.bodyWindow.nextOffset,60_000);assert.equal(first.bodyWindow.complete,false);
+ assert.equal(Array.from(first.body).length,60_005);assert.equal(first.bodyTruncated,false);assert.equal(first.bodyWindow.nextOffset,null);assert.equal(first.bodyWindow.complete,true);
  const tail=project(value,{messageId:"fixture-message",bodyWindow:{offset:60_000,maxChars:10,version:first.bodyWindow.version}});
  assert.equal(tail.body,"😀".repeat(5));assert.equal(tail.bodyWindow.nextOffset,null);assert.equal(tail.bodyWindow.complete,true);assert.equal(tail.bodyComplete,false);
 });
@@ -54,8 +54,8 @@ test("MIME omissions are explicit and unavailable projection ends never claim co
  const value=message("Visible plain body");
  value.payload.parts.push({mimeType:"text/html",body:{data:Buffer.from("<script>hidden-html</script>").toString("base64url")}},{mimeType:"text/plain",filename:"private.txt",body:{data:Buffer.from("hidden-attachment").toString("base64url"),attachmentId:"hidden-id"}});
  const full=project(value,{messageId:"fixture-message"});
- assert.equal(full.body,"Visible plain body");assert.equal(full.bodyComplete,true);assert.ok(full.omissions.includes("html_not_returned"));assert.ok(full.omissions.includes("attachments_not_returned"));
- assert.doesNotMatch(JSON.stringify(full),/hidden-html|hidden-attachment|hidden-id|payload|attachmentId/);
+ assert.equal(full.body,"Visible plain body");assert.equal(full.bodyComplete,true);assert.equal(full.attachments.length,1);assert.equal(full.attachments[0].attachmentId,"hidden-id");
+ assert.doesNotMatch(JSON.stringify(full),/hidden-html|hidden-attachment|payload/);
  for(const fixture of [
   {...value,payload:{parts:[{mimeType:"text/html",body:{data:"abc"}}]}},
   {...value,payload:{mimeType:"text/plain",body:{data:"a"}}},
@@ -64,15 +64,15 @@ test("MIME omissions are explicit and unavailable projection ends never claim co
   const result=project(fixture,{messageId:"fixture-message"});
   assert.equal(result.bodyWindow.complete,false);assert.equal(result.bodyComplete,false);assert.equal(result.bodyWindow.nextOffset,null);assert.ok(result.omissions.length);
  }
- let deep:any={mimeType:"text/plain",body:{data:Buffer.from("too deep").toString("base64url")}};for(let i=0;i<14;i++)deep={parts:[deep]};
- const depth=project({...value,payload:deep},{messageId:"fixture-message"});assert.ok(depth.omissions.includes("mime_depth_limit"));assert.equal(depth.bodyWindow.complete,false);
- const many=project({...value,payload:{parts:Array.from({length:105},()=>({mimeType:"text/plain",body:{data:"eA"}}))}},{messageId:"fixture-message"});
- assert.ok(many.omissions.includes("mime_part_limit"));assert.equal(many.bodyWindow.complete,false);
- const metadata=project(value,{messageId:"fixture-message",format:"metadata"});assert.equal(metadata.body,"Fixture snippet");assert.ok(metadata.omissions.includes("body_not_requested"));assert.equal(metadata.bodyWindow.complete,false);assert.equal(metadata.bodyWindow.nextOffset,null);
+ let deep:any={mimeType:"text/plain",body:{data:Buffer.from("deep body").toString("base64url")}};
+ for(let i=0;i<40;i++)deep={parts:[deep]};
+ assert.equal(project({...value,payload:deep},{messageId:"fixture-message"}).body,"deep body");
+ const many={parts:Array.from({length:150},(_,i)=>({mimeType:"text/plain",body:{data:Buffer.from(String(i)).toString("base64url")}}))};
+ assert.match(project({...value,payload:many},{messageId:"fixture-message"}).body,/149$/);
 });
 test("closed window validation rejects inconsistent offsets bounds format and caller scope overrides",()=>{
  const invalid=[
-  {bodyWindow:{}},{bodyWindow:{maxChars:0}},{bodyWindow:{maxChars:60_001}},{bodyWindow:{maxChars:1.5}},
+  {bodyWindow:{}},{bodyWindow:{maxChars:0}},{bodyWindow:{maxChars:1.5}},
   {bodyWindow:{offset:null,maxChars:1}},{bodyWindow:{offset:-1,maxChars:1}},{bodyWindow:{offset:1,maxChars:1}},
   {bodyWindow:{offset:0,maxChars:1,version:"untrusted"}},{bodyWindow:{offset:Number.MAX_SAFE_INTEGER+1,maxChars:1,version:"sha256-v1:"+"a".repeat(64)}},
   {bodyWindow:{maxChars:2,scope:"forged"}},{bodyWindow:{maxChars:2},format:"metadata"},{messageScope:scope},
@@ -91,10 +91,10 @@ test("provider never forwards window offsets or fingerprints to Gmail and requir
   await assert.rejects(provider.read("fixture-access","gmail.get",{messageId:"fixture-message",bodyWindow:{offset:3,maxChars:2}},{messageScope:scope}),/invalid_google_read/);assert.equal(calls,1);
  }finally{globalThis.fetch=previous;}
 });
-test("the unchanged provider transport ceiling fails explicitly instead of inventing a complete window",async()=>{
+test("provider transport supports valid message content beyond the former two-megabyte ceiling",async()=>{
  const provider=await createGoogleProvider(),previous=globalThis.fetch;
- globalThis.fetch=async()=>new Response("x".repeat(2_000_001));
- try{await assert.rejects(provider.read("fixture-access","gmail.get",{messageId:"fixture-message",bodyWindow:{maxChars:2}},{messageScope:scope}),/google_read_too_large/);}
+ globalThis.fetch=async()=>new Response(JSON.stringify(message("x".repeat(2_100_000))));
+ try{const value=await provider.read("fixture-access","gmail.get",{messageId:"fixture-message"},{messageScope:scope}) as any;assert.equal(value.body.length,2_100_000);assert.equal(value.bodyComplete,true);}
  finally{globalThis.fetch=previous;}
 });
 

@@ -62,6 +62,12 @@ internal fun ConnectionsDialog(state: ConnectionsState, connections: Connections
                         Column(Modifier.padding(12.dp)) {
                             Text(connection.label, style = MaterialTheme.typography.titleMedium)
                             Text(connectionStatus(connection.status), style = MaterialTheme.typography.bodySmall)
+                            if (connection.kind == "google") {
+                                Text((if (connection.service == "gmail") "Gmail" else "Calendar") + " · " + (if (connection.access == "write") "Read and write" else "Read only"), style = MaterialTheme.typography.bodySmall)
+                                if (connection.account.isNotBlank() && connection.status == "connected") TextButton(onClick = { connections.changeAccess(connection) }, enabled = state.ready && !state.busy) {
+                                    Text(if (connection.access == "write") "Use read only" else "Enable write access")
+                                }
+                            }
                             TextButton(onClick = { disconnect = connection }, enabled = state.ready && !state.busy) { Text("Disconnect") }
                         }
                     }
@@ -69,12 +75,12 @@ internal fun ConnectionsDialog(state: ConnectionsState, connections: Connections
                 HorizontalDivider()
                 Text(if (state.vaultConfigured) "Bitwarden connected" else "Connect Bitwarden before adding account credentials.")
                 Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                    OutlinedButton(onClick = { editor = if (editor == "bitwarden") null else "bitwarden" }, enabled = state.ready && !state.busy, modifier = Modifier.fillMaxWidth()) { Text("Bitwarden") }
-                    OutlinedButton(onClick = { editor = if (editor == "password") null else "password" }, enabled = state.ready && state.vaultConfigured && !state.busy, modifier = Modifier.fillMaxWidth()) { Text("Add account") }
+                    OutlinedButton(onClick = { editor = if (editor == "bitwarden") null else "bitwarden" }, enabled = state.ready && !state.busy, modifier = Modifier.fillMaxWidth()) { Text("Set up Bitwarden") }
+                    OutlinedButton(onClick = { editor = if (editor == "password") null else "password" }, enabled = state.ready && state.vaultConfigured && !state.busy, modifier = Modifier.fillMaxWidth()) { Text("Add a username and password") }
                 }
                 Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                    OutlinedButton(onClick = { editor = if (editor == "googleSetup") null else "googleSetup" }, enabled = state.ready && state.vaultConfigured && !state.busy, modifier = Modifier.fillMaxWidth()) { Text("Google setup") }
-                    OutlinedButton(onClick = { editor = if (editor == "google") null else "google" }, enabled = state.ready && state.vaultConfigured && state.googleConfigured && !state.busy, modifier = Modifier.fillMaxWidth()) { Text("Connect Google") }
+                    OutlinedButton(onClick = { editor = if (editor == "googleSetup") null else "googleSetup" }, enabled = state.ready && state.vaultConfigured && !state.busy, modifier = Modifier.fillMaxWidth()) { Text("Set up Google authorization") }
+                    OutlinedButton(onClick = { editor = if (editor == "google") null else "google" }, enabled = state.ready && state.vaultConfigured && state.googleConfigured && !state.busy, modifier = Modifier.fillMaxWidth()) { Text("Connect a Google account") }
                 }
                 key(editor, state.formRevision, state.ready) {
                     if (state.ready && !state.busy) when (editor) {
@@ -137,7 +143,7 @@ private fun BitwardenForm(save: (String, String, String) -> Unit) {
     var token by remember { mutableStateOf("") }
     Text("Bitwarden Secrets Manager", style = MaterialTheme.typography.titleMedium)
     ConnectionField("Organization ID", organization, { organization = it }, maximum = 100)
-    ConnectionField("Project ID", project, { project = it }, maximum = 100)
+    ConnectionField("Secrets Manager project ID", project, { project = it }, maximum = 100)
     ConnectionField("Machine account access token", token, { token = it }, secret = true, maximum = 8192)
     Button(onClick = {
         val submitted = token
@@ -163,7 +169,7 @@ private fun PasswordConnectionForm(save: (String, String, String, String) -> Uni
         password = ""
         save(label, origin, username, submitted)
         label = ""; origin = ""; username = ""
-    }, enabled = listOf(label, username, password).all(String::isNotBlank) && origin.startsWith("https://")) { Text("Save account") }
+    }, enabled = listOf(label, username, password).all(String::isNotBlank) && origin.startsWith("https://")) { Text("Save account in Bitwarden") }
 }
 
 @Composable
@@ -195,7 +201,7 @@ private fun GoogleConnectionForm(save: (String, String, String) -> Unit) {
     Text("Connect a Google account", style = MaterialTheme.typography.titleMedium)
     ConnectionField("Connection label", label, { label = it }, maximum = 120)
     ConnectionField("Google account email", email, { email = it }, maximum = 320)
-    listOf("gmail_read" to "Read Gmail", "calendar_read" to "Read a personal calendar", "household_calendar_manage" to "Manage the house calendar").forEach { (value, caption) ->
+    listOf("gmail_read" to "Gmail — read only", "gmail_manage" to "Gmail — read and write", "calendar_read" to "Calendar — read only", "calendar_manage" to "Calendar — read and write").forEach { (value, caption) ->
         Row { RadioButton(selected = preset == value, onClick = { preset = value }); TextButton(onClick = { preset = value }) { Text(caption) } }
     }
     Text("Google shows the requested permissions before you approve access.", style = MaterialTheme.typography.bodySmall)

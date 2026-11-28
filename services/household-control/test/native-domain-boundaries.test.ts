@@ -18,7 +18,8 @@ test("all native domain effects require operation identity and expose closed sch
   for(const tool of tools) {
     assert.equal(tool.inputSchema.additionalProperties,false);
     const properties=tool.inputSchema.properties as Record<string,unknown>;
-    for(const forbidden of ["shell","command","account","client","agentId","sessionKey","calendarId","accessToken","token","path"])assert.equal(properties[forbidden],undefined,tool.name+":"+forbidden);
+    for(const forbidden of ["shell","command","account","client","agentId","sessionKey","accessToken","token","path"])assert.equal(properties[forbidden],undefined,tool.name+":"+forbidden);
+    if(properties.calendarId)assert.ok(properties.connectionId,tool.name+":calendar_requires_connection");
     if(tool.effect==="write")assert.ok((tool.inputSchema.required as string[]).includes("operationId"));
   }
 });
@@ -48,6 +49,13 @@ test("calendar attendees cannot be authorized by model input",async()=>{
   const google=new GoogleDomain(googleConfig,runner);
   await assert.rejects(()=>google.execute("household_calendar_create",{operationId:"calendar-op-001",summary:"School event",start:"2026-11-03T16:00:00-05:00",end:"2026-11-03T17:00:00-05:00",attendees:["person@example.test"]},context()),{code:"attendee_not_authorized"});
   assert.equal(commands,0);
+});
+
+test('private owner authority removes a separate attendee ceremony while tool arguments cannot mint it',async()=>{
+ let commands=0;const google=new GoogleDomain(googleConfig,{async runJson(){commands++;throw Error('synthetic_provider_stop');}});
+ const args={operationId:'calendar-owner-001',summary:'Owner experiment',start:'2026-11-03T16:00:00-05:00',end:'2026-11-03T17:00:00-05:00',attendees:['person@example.test']};
+ await assert.rejects(()=>google.execute('household_calendar_create',args,{...context(),ownerAutonomy:true}),/synthetic_provider_stop/);assert.ok(commands>0);
+ const before=commands;await assert.rejects(()=>google.execute('household_calendar_create',{...args,ownerAutonomy:true},context()),{code:'invalid_arguments'});assert.equal(commands,before);
 });
 
 test("calendar create with unknown write result remains unknown instead of safe-to-retry",async()=>{

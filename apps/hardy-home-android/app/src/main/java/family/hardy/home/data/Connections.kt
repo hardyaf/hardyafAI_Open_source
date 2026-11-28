@@ -11,7 +11,7 @@ import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 import org.json.JSONObject
 
-internal data class AccountConnection(val id: String, val label: String, val status: String)
+internal data class AccountConnection(val id: String, val label: String, val status: String, val kind: String = "", val account: String = "", val service: String = "", val access: String = "read")
 internal data class ConnectionsState(
     val open: Boolean = false,
     val busy: Boolean = false,
@@ -83,14 +83,14 @@ internal class Connections(
             request("POST", "/google/config", JSONObject().put("operationId", operationId())
                 .put("clientId", clientId.trim()).put("clientSecret", clientSecret.trim()).put("redirectUri", redirectUri.trim()))
         }
-    fun startGoogle(label: String, expectedEmail: String, preset: String) {
+    fun startGoogle(label: String, expectedEmail: String, preset: String, connectionId: String? = null) {
         if (!state.value.googleConfigured) return
         val message = if (state.value.redirectUri.startsWith("http:"))
             "Open Google to approve access. Then paste the complete return URL and choose Finish Google connection."
             else "Open Google to approve access. Return here and refresh to check the connection."
         change(message) {
             val result = request("POST", "/google/start", JSONObject().put("operationId", operationId())
-                .put("label", label.trim()).put("expectedEmail", expectedEmail.trim()).put("preset", preset))
+                .put("label", label.trim()).put("expectedEmail", expectedEmail.trim()).put("preset", preset).apply { connectionId?.let { put("connectionId", it) } })
             val url = URI(result.getString("authorizationUrl"))
             require(url.scheme == "https" && url.host == "accounts.google.com" && url.userInfo == null)
             mutable.update { it.copy(authorizationUrl = url.toASCIIString(), flowId = result.getString("flowId")) }
@@ -106,6 +106,11 @@ internal class Connections(
             request("POST", "/google/complete", JSONObject().put("flowId", flowId).put("callbackUrl", callbackUrl))
             mutable.update { it.copy(authorizationUrl = null, flowId = null) }
         }
+    }
+    fun changeAccess(connection: AccountConnection) {
+        if (connection.access == "write") change("HardyAI now has read-only access to this connection.") {
+            request("POST", "/google/read-only", JSONObject().put("operationId", operationId()).put("connectionId", connection.id))
+        } else startGoogle(connection.label, connection.account, if (connection.service == "gmail") "gmail_manage" else "calendar_manage", connection.id)
     }
     fun disconnect(id: String) = change("Account disconnected.", requireVault = false) {
         request("DELETE", "/" + SignedHouseholdTransport.encode(id), JSONObject().put("operationId", operationId()))
@@ -159,7 +164,7 @@ internal class Connections(
             googleConfigured = google?.optBoolean("configured") == true,
             redirectUri = google?.optString("redirectUri")?.takeIf(String::isNotBlank) ?: defaultRedirect(),
             connections = json.optJSONArray("connections").objectsSafe().map { value ->
-                AccountConnection(value.getString("id"), value.optString("label", "Account connection"), value.optString("status"))
+                AccountConnection(value.getString("id"), value.optString("label", "Account connection"), value.optString("status"), value.optString("kind"), value.optString("account"), value.optString("service", if (value.optString("preset").startsWith("gmail_")) "gmail" else "calendar"), value.optString("access", "read"))
             },
         ) }
     }
@@ -176,6 +181,8 @@ private val connectionFailures = mapOf(
     "invalid_google_client" to "Enter the complete client ID and matching client secret from the same Google OAuth Web application client.",
     "invalid_google_redirect" to "Use this app’s loopback return URL or an allowed HTTPS DNS return URL.",
     "google_client_not_configured" to "Complete Google setup before connecting an account.",
+    "google_connection_changed" to "This connection changed during authorization. Refresh and start its access change again.",
+    "google_connection_ambiguous" to "Choose the existing connection whose access you want to change.",
     "google_account_mismatch" to "Google authorized a different account. Start again with the intended account.",
     "google_scope_not_granted" to "Google did not grant the requested access. Start authorization again.",
     "google_scope_exceeds_request" to "Google returned permissions beyond this request. Start authorization again.",

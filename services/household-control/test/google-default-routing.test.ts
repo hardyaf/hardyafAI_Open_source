@@ -14,10 +14,11 @@ import {GoogleDomain} from "../src/domains/google/index.ts";
 import {fingerprint} from "../src/domain-runtime/common.ts";
 import {createNativeCredentialConsumer,listenNativeCredentialConsumer} from "../src/connections/native-consumer.ts";
 import {ConnectionsService} from "../src/connections/service.ts";
+import {ConnectionsError} from "../src/connections/contracts.ts";
 import {ConnectionRepository} from "../src/connections/repository.ts";
 import type {ConnectionVault,GoogleProvider} from "../src/connections/contracts.ts";
 
-async function fixture(goal=false,audience:"private"|"household"="private"){
+async function fixture(goal=false,audience:"private"|"household"="private",write=false){
  const root=await mkdtemp(path.join(tmpdir(),"hardy-native-credential-snapshot-")),workspace=path.join(root,"workspace"),skills=path.join(root,"skills");
  await mkdir(workspace);await mkdir(skills);await writeFile(path.join(skills,"household-domains.json"),JSON.stringify({schemaVersion:1,domains:{}}));
  const database=new HouseholdDatabase(":memory:"),sql=database.domainConnection();database.setProfileStatus("alex","available","Fixture");
@@ -35,21 +36,22 @@ async function fixture(goal=false,audience:"private"|"household"="private"){
   execution:{skillsRoot:skills,nativeConfigPath:"/fixture/openclaw.json",openclawBinary:"/fixture/openclaw",sandboxImage:"fixture",sandboxRoots:[root],nativeEntries:[],schedulingEnabled:false},
   documents:{python:"/usr/bin/python3",script:"/fixture/documents.py",cacheRoot:path.join(root,"documents")},
   uplift:{python:"/usr/bin/python3",moduleRoot:"/fixture/uplift",database:path.join(root,"uplift.sqlite"),vaultRoot:path.join(root,"uplift")}} as any;
- const values=new Map<string,string>();let vaultReads=0,refreshes=0,providerReads=0,legacyCalls=0;const providerCalls:Array<{operation:string;input:unknown}>=[];
+ const values=new Map<string,string>();let vaultReads=0,refreshes=0,providerReads=0,legacyCalls=0,writes=0,writeUnknown=false;const providerCalls:Array<{operation:string;input:unknown}>=[];
  const vault:ConnectionVault={configured:async()=>true,bootstrap:async()=>{},put:async(key,value)=>{values.set(key,value);return{secretId:key,revision:"fixture"};},
   read:async key=>{vaultReads++;return values.get(key)!;},replace:async(key,previous,value)=>{assert.equal(values.get(key),previous);values.set(key,value);return{secretId:key,revision:"fixture"};}};
  const provider:GoogleProvider={authorizationUrl:async input=>"https://accounts.google.com/?state="+input.state,
   exchange:async input=>({refreshToken:"fixture-refresh-secret",email:input.expectedEmail,accountId:"fixture-subject",scopes:input.scopes}),revoke:async()=>{},
   refresh:async()=>{refreshes++;return{accessToken:"fixture-access-secret",refreshToken:"fixture-rotated-secret"};},
+  write:async(access,operation,input,context)=>{writes++;assert.equal(access,"fixture-access-secret");assert.equal(context.from,"fixture@example.invalid");if(writeUnknown)throw new ConnectionsError("google_write_outcome_unknown",503,"unknown");providerCalls.push({operation,input});return {state:"committed",operationId:(input as any).operationId,result:{id:"fixture-sent"}};},
   read:async(access,operation,input)=>{providerReads++;assert.equal(access,"fixture-access-secret");providerCalls.push({operation,input});return operation==="gmail.search"?{messages:[{id:"fixture-message"}]}:{id:"fixture-message",payload:{headers:[]}};}};
  const store=new ConnectionRepository(sql);const service=new ConnectionsService({store,vault,google:provider,securityReady:()=>true}),current=()=>{};
  await service.configureGoogle("alex",{operationId:"fixture-config-0001",clientId:"fixture.apps.googleusercontent.com",clientSecret:"fixture-client-secret",redirectUri:"http://localhost:8787/oauth2/callback"},current);
- const flow=await service.startGoogle("alex",{operationId:"fixture-google-0001",label:"Fixture",expectedEmail:"fixture@example.invalid",preset:"gmail_read"},current);
+ const flow=await service.startGoogle("alex",{operationId:"fixture-google-0001",label:"Fixture",expectedEmail:"fixture@example.invalid",preset:write?"gmail_manage":"gmail_read"},current);
  await service.completeGoogle("alex",{flowId:flow.flowId,callbackUrl:"http://localhost:8787/oauth2/callback?state="+new URL(flow.authorizationUrl).searchParams.get("state")+"&code=fixture-code"},current);
  const connectionId=(await service.snapshot("alex")).connections.find(row=>row.kind==="google")!.id;vaultReads=0;
  const server=createNativeCredentialConsumer({database,service,configuration}),socket=path.join(root,"consumer.sock");await listenNativeCredentialConsumer(server,socket);
  const client=new ConnectedGoogleClient(socket);let observed:any;
- const connected={readDefaultEmail(tool:string,args:unknown,context:any){observed=context;return client.readDefaultEmail(tool,args,context);},list(context:any){observed=context;return client.list(context);},read(id:string,tool:string,args:unknown,context:any){observed=context;return client.read(id,tool,args,context);}};
+ const connected={writeDefaultEmail(tool:string,args:unknown,context:any){observed=context;return client.writeDefaultEmail(tool,args,context);},write(id:string,tool:string,args:unknown,context:any){observed=context;return client.write(id,tool,args,context);},readDefaultEmail(tool:string,args:unknown,context:any){observed=context;return client.readDefaultEmail(tool,args,context);},list(context:any){observed=context;return client.list(context);},read(id:string,tool:string,args:unknown,context:any){observed=context;return client.read(id,tool,args,context);}};
  const artifacts=new ArtifactStore({root:path.join(root,"artifacts")});await artifacts.initialize();
  const runtime=new HouseholdDomainRuntime({database,artifacts,configuration,connectedGoogle:connected,adapter:{getContext:async()=>({...native}),listMessages:async()=>[{id:"fixture-user",role:"user",text}]} as any});
  (runtime as any).runner.runJson=async()=>{legacyCalls++;throw Error("legacy_must_not_run");};
@@ -64,7 +66,7 @@ async function fixture(goal=false,audience:"private"|"household"="private"){
   return runtime.executeNativeInvocation(name,args,bound);
  }
  async function load(){await runtime.execute("household_task_select_domains",{domains:["email"]},context);}
- return{root,database,sql,runtime,context,native,grant,client,connectionId,authorization,invoke,load,store,service,configuration,values,providerCalls,legacyCalls:()=>legacyCalls,observed:()=>observed,
+ return{artifacts,writes:()=>writes,unknown(){writeUnknown=true;},root,database,sql,runtime,context,native,grant,client,connectionId,authorization,invoke,load,store,service,configuration,values,providerCalls,legacyCalls:()=>legacyCalls,observed:()=>observed,
   counts:()=>({vaultReads,refreshes,providerReads}),
   async close(){await runtime.close();service.close();server.closeAllConnections();await new Promise<void>(resolve=>server.close(()=>resolve()));database.close();await rm(root,{recursive:true,force:true});}};
 }
@@ -195,5 +197,35 @@ test("default consumer wire rejects caller account and connection-ID overrides b
    assert.equal(value.status,400);assert.equal(value.body.error,"invalid_connection_request");
   }
   assert.deepEqual(f.counts(),unchangedCounts);assert.equal(f.legacyCalls(),0);
+ }finally{await f.close();}
+});
+
+
+test('connected Gmail send crosses native admission, real IPC and the existing effect ledger exactly once',async()=>{
+ const f=await fixture(false,'private',true);try{
+  await f.load();const args={operationId:'native-mail-send-001',to:['target@example.invalid'],subject:'Fixture only',text:'Synthetic message'};
+  const first=await f.invoke('household_email_send',args),replay=await f.invoke('household_email_send',args);
+  assert.equal(f.writes(),1);assert.equal((replay as any).operation.replayed,true);assert.equal((replay as any).result.state,'previous_result_recorded');assert.equal(f.legacyCalls(),0);
+  assert.doesNotMatch(JSON.stringify(first),/fixture-access-secret|fixture-refresh-secret|fixture-client-secret/);
+  await f.service.setGoogleReadOnly('alex',{operationId:'native-downgrade-001',connectionId:f.connectionId},()=>{});
+  const before=f.counts();await assert.rejects(()=>f.invoke('household_email_send',{...args,operationId:'native-mail-send-002'}),/connection_operation_not_allowed/);
+  assert.deepEqual(f.counts(),before);assert.equal(f.writes(),1);
+ }finally{await f.close();}
+});
+
+test('uncertain Google sends remain uncertain across IPC and are never automatically sent again',async()=>{
+ const f=await fixture(false,'private',true);try{
+  await f.load();f.unknown();const args={operationId:'native-mail-unknown-001',to:['target@example.invalid'],text:'Synthetic only'};
+  await assert.rejects(()=>f.invoke('household_email_send',args),e=>{assert.equal((e as any).deliveryOutcome??(e as any).outcome,'unknown');return true;});
+  await assert.rejects(()=>f.invoke('household_email_send',args));assert.equal(f.writes(),1);
+ }finally{await f.close();}
+});
+
+test('outgoing attachments resolve scoped artifact bytes before reaching the credential broker',async()=>{
+ const f=await fixture(false,'private',true);try{
+  await f.load();const bytes=Buffer.alloc(3*1024*1024,65);
+  const meta=await f.artifacts.put({ownerProfileId:'alex',conversationId:'fixture-conversation',taskId:'conversation:fixture-conversation',audience:'private'}, {profileId:'alex',canReadHousehold:true},{bytes,filename:'report.txt',mimeType:'text/plain',kind:'output'});
+  await f.invoke('household_email_draft_save',{operationId:'native-mail-attach-001',subject:'Synthetic',attachments:[{artifactId:meta.id}]});
+  const data=(f.providerCalls[0].input as any).attachments[0];assert.equal(data.filename,'report.txt');assert.equal(Buffer.from(data.data,'base64url').length,bytes.length);assert.equal(createHash('sha256').update(Buffer.from(data.data,'base64url')).digest('hex'),createHash('sha256').update(bytes).digest('hex'));
  }finally{await f.close();}
 });

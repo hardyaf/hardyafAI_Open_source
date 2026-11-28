@@ -151,9 +151,20 @@ def apply_context_patch(snapshot_root):
     for path in (applier, manifest):
         if not path.is_file() or path.is_symlink():
             raise RuntimeError("native_context_patch_bundle_missing")
+    # A known post-V5 overlay is an accepted successor, never an excuse to install stock.
+    overlay = deployment / "autonomy-runtime-patch.py"
+    if overlay.is_file():
+        import runpy
+        ns = runpy.run_path(str(overlay)); runtime = snapshot_root / "runtime/lib/node_modules/openclaw"
+        if ns["installed"](runtime, snapshot_root / "source"): return
     run(["/usr/bin/python3", "-I", str(applier),
          "--package-root", str(snapshot_root / "runtime/lib/node_modules/openclaw"),
          "--manifest", str(manifest), "--apply"])
+    if overlay.is_file():
+        writer = runpy.run_path(str(applier))
+        for relative, body in ns["payloads"](runtime, snapshot_root / "source").items():
+            target=runtime/relative
+            writer["atomic_write"](target,body,writer["metadata"](target))
 
 def snapshot(source):
     if ROOT.exists() and any(ROOT.iterdir()):
@@ -214,7 +225,7 @@ def tighten(config, copy_plugins=True):
             if existing in allowed and discovery not in allowed:
                 allowed.append(discovery)
         tools.setdefault("elevated", {})["enabled"] = False
-        if name == "household-analysis":
+        if name in {"household-analysis"} or name == "main" and agent.get("sandbox", {}).get("docker", {}).get("gpus") == "driver=cdi,device=nvidia.com/gpu=all":
             tools.setdefault("exec", {})["host"] = "sandbox"
             tools["exec"]["mode"] = "full"
         elif name == "household-diagnostics":
@@ -232,6 +243,15 @@ def tighten(config, copy_plugins=True):
             if copy_plugins:
                 shutil.copytree(original_path, destination, symlinks=True)
             paths[index] = str(destination)
+    overlay = ROOT / "source/deploy/hardybot/autonomy-runtime-patch.py"
+    if overlay.is_file():
+        import runpy
+        ns=runpy.run_path(str(overlay));ns["configure"](config)
+        if copy_plugins:
+            writer=runpy.run_path(str(ROOT / "source/deploy/hardybot/apply-native-context-patch.py"))
+            for relative,body in ns["payloads"](ROOT/"plugin-load/1",ROOT/"source","searxng").items():
+                target=ROOT/"plugin-load/1"/relative
+                writer["atomic_write"](target,body,writer["metadata"](target))
     return config
 
 def prepare_skill_cache(owner):

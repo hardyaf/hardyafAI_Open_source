@@ -92,3 +92,18 @@ A valid HTTPS DNS callback completes automatically. For a private IP service add
 register the loopback redirect shown by the app and paste the returned browser URL
 into the protected completion field. The application exchanges the authorization code
 and saves the refresh token directly to Bitwarden.
+
+### Finding account setup on the phone
+
+Open the side menu, then Connections while enrolled as the household owner.
+Version 0.6.2-alpha names the existing actions explicitly: Set up Bitwarden,
+Add a username and password, Set up Google authorization, and Connect a Google
+account. If Bitwarden is already connected, use Add a username and password
+directly; the existing protected service saves it in the selected vault project.
+These labels reuse the existing native forms and signed HTTPS connection API.
+No provider credentials enter chat, the ordinary retry cache or saved app state.
+
+Install the new APK as an update to the existing Hardy Home app. Its package
+and signing identity must match the previous installer so Android preserves the
+device enrollment, Keystore identity and private app data. Phone installation
+and real account-entry acceptance remain explicit user steps after build checks.

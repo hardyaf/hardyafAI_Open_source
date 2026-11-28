@@ -3,12 +3,10 @@ name: household-diagnostics
 description: Read current private operator system health and scoped task diagnostics without repair or credential access.
 ---
 
-# Household diagnostics
+# Diagnostics guidance
 
-For a routine private operator question about hardware, VRAM, loaded models, context allocation or service health, call `household_diagnostics_system_status` with `{}`. No native goal or diagnostic task is required solely for this read. Current profile capability and diagnostic grants are always required; a skill contract never grants access.
+household_diagnostics_system_status reads timestamped GPU, host, model allocation and service observations under current diagnostic permissions. No goal or explicit diagnostic task is required for this ordinary read. household_diagnostics_evidence provides scoped request/effect/context evidence in an explicit diagnostic task. Guides do not grant access.
 
-Use the returned timestamp and measurement labels. Per-device VRAM includes all device consumers; model allocation comes from Ollama and must not be equated with device utilization, token usage or guaranteed available capacity. A loaded model's allocated context is distinct from the conversation's used tokens. A model may be unloaded between requests. Missing readings are unavailable, not zero. Overall status describes collection availability; read each service state separately for health. CPU values are 1/5/15-minute load averages, not utilization percentages. GPU utilization is an instantaneous sample and may be low between generation and tool steps. A single sample does not certify thermal soak, workload quality, speed or future capacity. Approximate headroom calculations must name their basis.
+Model allocation, device utilization, available VRAM and token usage are different quantities. Missing readings are unavailable rather than zero. A status about collection availability is not a claim that every service is healthy. CPU load averages are not CPU utilization; a short GPU sample does not certify thermal soak or future capacity. Explain the basis of estimates.
 
-For a particular failed or overflowing request, use `household_diagnostics_evidence` in an explicitly authorized diagnostic task. It returns scoped task/effect/context/compaction evidence, not raw logs or mailbox content. Preserve current owner/source/target scope and distinguish observed facts from inference.
-
-These tools only observe. They cannot alter GPU limits, model/context settings, services, configuration, files, credentials, accounts, work scheduling or grants. Do not invent a shell tool, fetch a private endpoint or delegate a repair to bypass their boundary. An authorized repair is a separate normal task.
+These collectors observe rather than repair. Explicit diagnostic tasks retain read-only semantics; prompted experimentation or improvements use normal owner execution and its workshop. Credentials and raw private operational stores remain outside the lab. Choose an appropriate report format without a prescribed progress or completion template.
